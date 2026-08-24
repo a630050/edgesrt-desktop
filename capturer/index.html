@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>Edge 語音轉錄背景擷取器</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 24px;
+      max-width: 500px;
+      width: 100%;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+      text-align: center;
+    }
+    h1 { font-size: 20px; margin-bottom: 12px; color: #38bdf8; }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: 9999px;
+      background: #334155;
+      font-size: 14px;
+      margin-bottom: 16px;
+    }
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #ef4444;
+    }
+    .dot.active { background: #22c55e; box-shadow: 0 0 10px #22c55e; }
+    .dot.reconnecting { background: #eab308; }
+    .meter-container {
+      width: 100%;
+      height: 12px;
+      background: #334155;
+      border-radius: 6px;
+      overflow: hidden;
+      margin-bottom: 16px;
+    }
+    .meter-fill {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(90deg, #38bdf8, #22c55e);
+      transition: width 0.08s ease;
+    }
+    .text-preview {
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 12px;
+      min-height: 60px;
+      font-size: 14px;
+      color: #94a3b8;
+      text-align: left;
+      word-break: break-all;
+    }
+    .interim { color: #38bdf8; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🎙️ Edge 語音轉錄引擎（背景運作中）</h1>
+    <div class="status-badge">
+      <div id="status-dot" class="dot"></div>
+      <span id="status-text">正在連接後台服務...</span>
+    </div>
+    <div class="meter-container">
+      <div id="audio-meter" class="meter-fill"></div>
+    </div>
+    <div class="text-preview">
+      <span id="final-text"></span>
+      <span id="interim-text" class="interim"></span>
+    </div>
+  </div>
+
+  <script>
+    const statusDot = document.getElementById('status-dot');
+    const statusText = document.getElementById('status-text');
+
+    // ─────────────────────────────────────────────
+    // WebSocket 客戶端 (WSClient)
+    // ─────────────────────────────────────────────
+    const WSClient = (() => {
+      let ws = null;
+      let isConnected = false;
+      let retryCount = 0;
+      let reconnectTimer = null;
+
+      function connect() {
+        if (reconnectTimer) {
+          clearTimeout(reconnectTimer);
+          reconnectTimer = null;
+        }
+
+        const port = window.location.port || '8100';
+        const wsUrl = `ws://${window.location.hostname}:${port}/ws`;
+        
+        try {
+          if (ws) {
+            ws.onclose = null;
+            ws.onerror = null;
+            ws.close();
+          }
+          ws = new WebSocket(wsUrl);
+        } catch (e) {
+          _scheduleWSReconnect();
+          return;
+        }
+
+        ws.onopen = () => {
+          isConnected = true;
+          retryCount = 0;
+          statusDot.className = 'dot active';
+          statusText.textContent = '語音辨識中 (WebSocket 已連線)';
+          SpeechManager.start();
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data.command === 'restart') {
+              SpeechManager.hardRestart();
+            } else if (data.command === 'stop') {
+              SpeechManager.stop();
+              statusDot.className = 'dot';
+              statusText.textContent = '已暫停辨識';
+            } else if (data.command === 'start') {
+              SpeechManager.start();
+              statusDot.className = 'dot active';
+              statusText.textContent = '語音辨識中';
+            } else if (data.command === 'setLang') {
+              SpeechManager.setLang(data.lang || 'zh-TW');
+            }
+          } catch (e) {
+            console.error('解析 WebSocket 訊息失敗:', e);
+          }
+        };
+
+        ws.onclose = () => {
+          isConnected = false;
+          statusDot.className = 'dot reconnecting';
+          statusText.textContent = '後台服務斷線，重試連線中...';
+          _scheduleWSReconnect();
+        };
+
+        ws.onerror = () => {
+          if (ws) {
+            try { ws.close(); } catch (e) {}
+          }
+        };
+      }
+
+      function _scheduleWSReconnect() {
+        if (reconnectTimer) clearTimeout(reconnectTimer);
+        retryCount++;
+        const delay = Math.min(1500 * Math.pow(1.3, retryCount - 1), 10000);
+        reconnectTimer = setTimeout(connect, delay);
+      }
+
+      function send(obj) {
+        if (ws && isConnected && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(obj));
+        }
+      }
+
+      return { connect, send };
+    })();
+
+    // ─────────────────────────────────────────────
+    // 音量偵測與卡死預警 (AudioDetector)
+    // ─────────────────────────────────────────────
+    const AudioDetector = (() => {
+      let audioContext = null;
+      let analyser = null;
+      let dataArray = null;
+      let micStream = null;
+      let currentVolume = 0;
+      let loopTimer = null;
+      const meterFill = document.getElementById('audio-meter');
+
+      async function init() {
+        try {
+          if (micStream) return;
+          micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+          const AC = window.AudioContext || window.webkitAudioContext;
+          audioContext = new AC();
+          analyser = audioContext.createAnalyser();
+          analyser.fftSize = 256;
+          const source = audioContext.createMediaStreamSource(micStream);
+          source.connect(analyser);
+          dataArray = new Uint8Array(analyser.frequencyBinCount);
+          // 用 setInterval 而非 requestAnimationFrame 驅動：rAF 綁定畫面重繪，
+          // 視窗被 SW_HIDE 隱藏後會被瀏覽器降頻/暫停，導致音量條與 ASR 卡死
+          // 偵測（isAudioDetected）一起失靈。setInterval 不受可見性節流影響。
+          if (loopTimer) clearInterval(loopTimer);
+          loopTimer = setInterval(_loop, 50);
+        } catch (e) {
+          console.warn('音量偵測初始化失敗:', e);
+        }
+      }
+
+      let lastVolSend = 0;
+      function _loop() {
+        if (!analyser) return;
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
+        currentVolume = sum / dataArray.length;
+        if (meterFill) {
+          const pct = Math.min(100, Math.round(currentVolume * 2.5));
+          meterFill.style.width = pct + '%';
+        }
+        const now = Date.now();
+        if (now - lastVolSend > 70) {
+          lastVolSend = now;
+          WSClient.send({ event: 'volume', volume: Math.round(currentVolume) });
+        }
+      }
+
+      function isAudioDetected() {
+        return currentVolume > 2.0;
+      }
+
+      function destroy() {
+        if (loopTimer) {
+          clearInterval(loopTimer);
+          loopTimer = null;
+        }
+        if (micStream) {
+          micStream.getTracks().forEach(t => t.stop());
+          micStream = null;
+        }
+        if (audioContext) {
+          audioContext.close().catch(() => {});
+          audioContext = null;
+        }
+        analyser = null;
+      }
+
+      return { init, isAudioDetected, destroy };
+    })();
+
+    // ─────────────────────────────────────────────
+    // SpeechManager (語音辨識管理員)
+    // ─────────────────────────────────────────────
+    const SpeechManager = (() => {
+      let recognition = null;
+      let isActive = false;
+      let reconnectCount = 0;
+      let lastResultTime = 0;
+      let heartbeatTimer = null;
+      let currentLang = 'zh-TW';
+
+      const finalTextEl = document.getElementById('final-text');
+      const interimTextEl = document.getElementById('interim-text');
+
+      function setLang(lang) {
+        currentLang = lang;
+        if (isActive) hardRestart();
+      }
+
+      // 追蹤「已送出 final 的最後一個 results 索引」，不依賴瀏覽器回報的 event.resultIndex。
+      // 原因：Edge 的連續辨識模式下，resultIndex 有時會跳過尚未 isFinal 的片段，
+      // 導致該片段被直接丟棄不再送出，畫面上呈現「interim 前段文字突然消失」。
+      let lastFinalIndex = -1;
+
+      function _createRecognition() {
+        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRec) {
+          WSClient.send({ event: 'error', error: '此瀏覽器不支援 Web Speech API' });
+          return null;
+        }
+        const r = new SpeechRec();
+        r.continuous = true;
+        r.interimResults = true;
+        r.maxAlternatives = 1;
+        r.lang = currentLang;
+        lastFinalIndex = -1;
+
+        r.onresult = (event) => {
+          let interim = '';
+          let final = '';
+          for (let i = lastFinalIndex + 1; i < event.results.length; i++) {
+            const result = event.results[i];
+            const t = result[0].transcript;
+            if (result.isFinal) {
+              final += t;
+              lastFinalIndex = i;
+            } else {
+              interim += t;
+            }
+          }
+
+          if (final) {
+            finalTextEl.textContent = (finalTextEl.textContent + ' ' + final).slice(-100);
+            WSClient.send({ event: 'final', text: final, timestamp: Date.now() });
+          }
+          if (interim) {
+            interimTextEl.textContent = interim;
+            WSClient.send({ event: 'interim', text: interim, timestamp: Date.now() });
+          } else {
+            interimTextEl.textContent = '';
+            WSClient.send({ event: 'interim', text: '', timestamp: Date.now() });
+          }
+
+          lastResultTime = Date.now();
+          reconnectCount = 0;
+        };
+
+        r.onerror = (event) => {
+          const err = event.error;
+          console.warn('語音辨識事件:', err);
+          // 'no-speech', 'aborted', 'network' 為正常生命週期與自動重連事件，非致命異常
+          if (err === 'no-speech' || err === 'aborted' || err === 'network') {
+            return;
+          }
+          if (err === 'not-allowed') {
+            WSClient.send({ event: 'error', error: '麥克風權限被拒絕，請確認權限設定' });
+            stop();
+          } else if (err === 'audio-capture') {
+            WSClient.send({ event: 'error', error: '未偵測到音訊輸入裝置' });
+            stop();
+          } else {
+            WSClient.send({ event: 'error', error: err });
+          }
+        };
+
+        r.onend = () => {
+          if (!isActive) return;
+          _scheduleReconnect();
+        };
+
+        return r;
+      }
+
+      function _scheduleReconnect() {
+        if (!isActive) return;
+        reconnectCount++;
+        const delay = reconnectCount <= 2 ? 60 : Math.min(reconnectCount * 150, 1000);
+        setTimeout(() => {
+          if (!isActive) return;
+          recognition = _createRecognition();
+          try {
+            lastResultTime = Date.now();
+            if (recognition) recognition.start();
+          } catch (e) {
+            _scheduleReconnect();
+          }
+        }, delay);
+      }
+
+      function _startHeartbeat() {
+        _stopHeartbeat();
+        heartbeatTimer = setInterval(() => {
+          if (!isActive) return;
+          // 有音量但超過 10 秒沒有吐出文字：判定為 ASR 僵死，自動重啟
+          if (AudioDetector.isAudioDetected() && lastResultTime > 0 && Date.now() - lastResultTime > 10000) {
+            console.log('偵測到語音辨識僵死，執行自動恢復...');
+            hardRestart();
+          }
+        }, 4000);
+      }
+
+      function _stopHeartbeat() {
+        if (heartbeatTimer) {
+          clearInterval(heartbeatTimer);
+          heartbeatTimer = null;
+        }
+      }
+
+      let isRestarting = false;
+      function hardRestart() {
+        if (isRestarting) return;
+        isRestarting = true;
+        _stopHeartbeat();
+        if (recognition) {
+          try {
+            recognition.onend = null;
+            recognition.onerror = null;
+            recognition.onresult = null;
+            recognition.stop();
+          } catch (e) {}
+          recognition = null;
+        }
+        reconnectCount = 0;
+        lastResultTime = Date.now();
+        setTimeout(() => {
+          if (!isActive) {
+            isRestarting = false;
+            return;
+          }
+          recognition = _createRecognition();
+          try {
+            if (recognition) {
+              recognition.start();
+              _startHeartbeat();
+            }
+          } catch (e) {
+            _scheduleReconnect();
+          } finally {
+            isRestarting = false;
+          }
+        }, 200);
+      }
+
+      async function start() {
+        if (isActive) return;
+        isActive = true;
+        reconnectCount = 0;
+        lastResultTime = Date.now();
+        AudioDetector.init();
+        recognition = _createRecognition();
+        if (recognition) {
+          try {
+            recognition.start();
+            _startHeartbeat();
+          } catch (e) {
+            _scheduleReconnect();
+          }
+        }
+      }
+
+      function stop() {
+        isActive = false;
+        _stopHeartbeat();
+        AudioDetector.destroy();
+        if (recognition) {
+          try { recognition.stop(); } catch (e) {}
+          recognition = null;
+        }
+      }
+
+      return { start, stop, hardRestart, setLang };
+    })();
+
+    // 頁面載入後自動連線 WebSocket
+    window.addEventListener('DOMContentLoaded', () => {
+      WSClient.connect();
+    });
+  </script>
+</body>
+</html>

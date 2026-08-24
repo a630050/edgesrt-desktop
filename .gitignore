@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.spec
+
+# Caches and builds
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+
+# Local app data & logs (整個資料夾都是本機執行時的狀態/設定，不進版控)
+_appdata/
+
+# Environments
+venv/
+env/
+.env
+
+# IDE
+.vscode/
+.idea/
+
+# Unrelated local tool metadata
+.freebuff/
