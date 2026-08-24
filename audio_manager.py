@@ -61,7 +61,13 @@ class IMMDevice(IUnknown):
         COMMETHOD([], HRESULT, 'Activate'),
         COMMETHOD([], HRESULT, 'OpenPropertyStore', (['in'], wintypes.DWORD, 'stgmAccess'), (['out'], ctypes.POINTER(ctypes.POINTER(IPropertyStore)), 'ppProperties')),
         COMMETHOD([], HRESULT, 'GetId', (['out'], ctypes.POINTER(c_wchar_p), 'ppstrId')),
+        COMMETHOD([], HRESULT, 'GetState', (['out'], ctypes.POINTER(wintypes.DWORD), 'pdwState')),
     ]
+
+DEVICE_STATE_ACTIVE = 0x1
+DEVICE_STATE_DISABLED = 0x2
+DEVICE_STATE_NOTPRESENT = 0x4
+DEVICE_STATE_UNPLUGGED = 0x8
 
 class IMMDeviceCollection(IUnknown):
     _iid_ = IID_IMMDeviceCollection
@@ -197,6 +203,65 @@ class AudioManager:
                 pass
 
         return devices
+
+    def ensure_stereo_mix_enabled(self) -> List[str]:
+        """
+        很多電腦的「立體聲混音 / Stereo Mix」錄音裝置預設是停用狀態（Windows
+        不會顯示在一般裝置清單，也偵測不到），導致擷取電腦播放聲音的功能形同
+        不存在。啟動時掃描一次（含停用裝置），找到名稱符合的就用 SoundVolumeView
+        直接啟用。這是 Windows 裝置層級的設定，不是本程式的執行期狀態，關閉
+        程式後也會維持啟用，不需要、也不會自動還原。
+        回傳這次實際被啟用的裝置名稱清單（沒有動作就是空清單）。
+        """
+        enabled = []
+        if not os.path.isfile(SVV_EXE):
+            logger.warning(f"找不到 SoundVolumeView 工具，無法自動啟用立體聲混音: {SVV_EXE}")
+            return enabled
+
+        try:
+            comtypes.CoInitialize()
+            enumerator = client.CreateObject(CLSID_MMDeviceEnumerator, interface=IMMDeviceEnumerator)
+            # dataFlow=1 (eCapture)，dwStateMask 同時含 ACTIVE 與 DISABLED 才能掃到被停用的裝置
+            collection = enumerator.EnumAudioEndpoints(1, DEVICE_STATE_ACTIVE | DEVICE_STATE_DISABLED)
+            count = collection.GetCount()
+
+            for i in range(count):
+                dev = collection.Item(i)
+                state = dev.GetState()
+                if state != DEVICE_STATE_DISABLED:
+                    continue
+
+                dev_id = dev.GetId()
+                props = dev.OpenPropertyStore(0)
+                pv = props.GetValue(byref(PKEY_Device_FriendlyName))
+                dev_name = ""
+                if PropVariantToStringAlloc:
+                    pStr = c_wchar_p()
+                    PropVariantToStringAlloc(byref(pv), byref(pStr))
+                    if pStr.value:
+                        dev_name = pStr.value
+
+                lower_name = dev_name.lower()
+                if not any(k in dev_name or k in lower_name for k in ["立體聲混音", "立体声混音", "stereo mix"]):
+                    continue
+
+                cmd = [SVV_EXE, "/Enable", dev_id]
+                res = subprocess.run(cmd, capture_output=True,
+                                      creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+                if res.returncode == 0:
+                    logger.info(f"已自動啟用停用中的立體聲混音裝置: {dev_name}")
+                    enabled.append(dev_name)
+                else:
+                    logger.warning(f"嘗試啟用立體聲混音裝置失敗 (returncode={res.returncode}): {dev_name}")
+        except Exception as e:
+            logger.error(f"掃描/啟用立體聲混音裝置失敗: {e}")
+        finally:
+            try:
+                comtypes.CoUninitialize()
+            except Exception:
+                pass
+
+        return enabled
 
     def set_default_device(self, device_id: str) -> bool:
         """使用 SoundVolumeView 將指定 ID 設為 Windows 預設錄音端點"""

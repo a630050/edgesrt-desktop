@@ -56,11 +56,15 @@ class MainWindow(QMainWindow):
 
         # 核心狀態與資料
         self.audio_manager = AudioManager()
+        # 很多電腦的「立體聲混音」預設是停用狀態，偵測到就直接啟用（Windows 裝置
+        # 層級設定，關閉程式後不會、也不需要還原），確保「電腦聲音」音源可被選用
+        self._newly_enabled_devices = self.audio_manager.ensure_stereo_mix_enabled()
         self.glossary: Dict[str, str] = load_glossary()
         self.typography_cfg = load_typography()
         self.current_theme = "night"
         self.is_recording = True
         self.layout_mode = "full"  # "full" | "half" | "third"
+        self._immersive_fullscreen = False  # 沉浸式全螢幕：隱藏工具列但保留視窗外框
         self.font_size = int(self.typography_cfg.get("font_size", 24))
         self.font_family = self.typography_cfg.get("font_family", "Microsoft JhengHei UI")
         self.line_spacing = float(self.typography_cfg.get("line_spacing", 1.2))
@@ -83,6 +87,10 @@ class MainWindow(QMainWindow):
         self._init_ui()
         self._init_signals()
         self._apply_theme(self.current_theme)
+
+        if self._newly_enabled_devices:
+            names = "、".join(self._newly_enabled_devices)
+            self.status_bar.showMessage(f"已自動啟用系統中停用的錄音裝置：{names}", 5000)
 
         # 啟動 Edge 背景識別引擎
         self.capture_server.start(hidden_edge=True)
@@ -110,9 +118,11 @@ class MainWindow(QMainWindow):
         self.top_source_layout.setContentsMargins(8, 4, 8, 4)
         self.top_source_layout.setSpacing(8)
         main_layout.addWidget(self.top_source_frame)
+        self.top_source_frame.installEventFilter(self)
 
         # 2. 主要功能工具列
         self.main_toolbar = self._create_main_toolbar()
+        self.main_toolbar.installEventFilter(self)
 
         # 3. 核心文字轉錄區 (預設唯讀，暫停後開放編輯)
         self.editor = QTextEdit()
@@ -645,6 +655,14 @@ class MainWindow(QMainWindow):
         elif obj == self.status_bar:
             if event.type() in (QEvent.Type.Resize, QEvent.Type.LayoutRequest, QEvent.Type.Show):
                 self._update_license_button_pos()
+        elif obj in (self.main_toolbar, self.top_source_frame):
+            # 按住工具列/音源切換列的空白區域（非按鈕、非下拉選單）拖曳可移動視窗
+            if event.type() == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
+                if obj.childAt(event.position().toPoint()) is None:
+                    wh = self.windowHandle()
+                    if wh:
+                        wh.startSystemMove()
+                        return True
         return super().eventFilter(obj, event)
 
     def showEvent(self, event):
@@ -659,9 +677,12 @@ class MainWindow(QMainWindow):
         self._update_empty_prompt_geometry()
 
     def toggle_fullscreen(self):
-        """切換全螢幕模式 (進入全螢幕隱藏工具列/狀態列；退出還原為視窗顯示)"""
-        if self.isFullScreen():
-            # 退出全螢幕：還原為視窗顯示狀態
+        """切換沉浸式全螢幕模式 (進入時隱藏工具列/狀態列；退出還原為視窗顯示)
+        刻意使用 showMaximized() 而非 showFullScreen()，讓視窗在任何模式下都
+        保留原生外框（標題列、縮小/放大/關閉按鈕），不會變成無邊框滿版視窗。"""
+        if self._immersive_fullscreen:
+            # 退出沉浸式全螢幕：還原為視窗顯示狀態
+            self._immersive_fullscreen = False
             if self.layout_mode == "full":
                 self.showMaximized()
             else:
@@ -674,11 +695,12 @@ class MainWindow(QMainWindow):
             self._update_empty_prompt_geometry()
             self.status_bar.showMessage("已退出全螢幕模式", 2000)
         else:
-            # 進入全螢幕：隱藏所有外框、工具列與狀態列
+            # 進入沉浸式全螢幕：隱藏工具列與狀態列，但保留視窗外框
+            self._immersive_fullscreen = True
             self.main_toolbar.hide()
             self.top_source_frame.hide()
             self.status_bar.hide()
-            self.showFullScreen()
+            self.showMaximized()
             self._update_empty_prompt_geometry()
 
     def _cycle_window_layout(self):
@@ -768,7 +790,7 @@ class MainWindow(QMainWindow):
         if event.key() == Qt.Key.Key_F4 and (event.modifiers() & Qt.KeyboardModifier.ControlModifier):
             self.close()
             return
-        elif event.key() in (Qt.Key.Key_Escape, Qt.Key.Key_F11) and self.isFullScreen():
+        elif event.key() in (Qt.Key.Key_Escape, Qt.Key.Key_F11) and self._immersive_fullscreen:
             self.toggle_fullscreen()
             return
         elif event.key() == Qt.Key.Key_F11:
