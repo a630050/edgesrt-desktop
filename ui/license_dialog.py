@@ -49,14 +49,17 @@ class LicenseDialog(QDialog):
 
         <hr style="border: none; border-top: 1px solid {t['border']}; margin: 14px 0;" />
 
-        <h3 style="color: {h2_color}; margin-bottom: 8px;">使用之第三方開源套件與技術</h3>
+        <h3 style="color: {h2_color}; margin-bottom: 8px;">使用之第三方套件與技術</h3>
         <ul style="line-height: 1.7; margin-left: -15px; font-size: 10.5pt;">
             <li><b>PyQt6</b>（Riverbank Computing）—— 高效能 GUI 桌面框架（GPL v3）</li>
+            <li><b>PyQt6-Qt6</b>（PyQt6 依賴，內含 Qt6 核心函式庫）—— 底層 UI 渲染引擎（LGPL v3）</li>
+            <li><b>PyQt6-sip</b> —— PyQt6 的 Python/C++ 綁定橋接層（BSD-2-Clause）</li>
             <li><b>aiohttp</b> —— 非同步 HTTP 與 WebSocket 串流伺服端（Apache 2.0）</li>
             <li><b>comtypes</b> —— Windows Core Audio API 底層端點列舉（MIT License）</li>
             <li><b>pywin32</b> —— Windows 系統整合與 Win32 API 調用（PSF License）</li>
-            <li><b>SoundVolumeView</b>（NirSoft）—— Windows 預設錄音端點快速切換工具（Freeware）</li>
-            <li><b>Web Speech API</b> —— Microsoft Edge / Chromium 即時語音辨識雲端引擎</li>
+            <li><b>SoundVolumeView</b>（NirSoft）—— Windows 預設錄音端點快速切換工具（Freeware，僅限非商業免費散布且不可修改）</li>
+            <li><b>PyInstaller</b> —— 打包為單檔執行檔，其 bootloader 會嵌入編譯後的 exe（GPL v2，附帶授權例外條款）</li>
+            <li><b>Web Speech API</b> —— Microsoft Edge / Chromium 即時語音辨識雲端引擎（微軟專有服務）</li>
         </ul>
         <p style="font-size: 9.5pt; color: #94a3b8; margin-top: 4px;">
             * 註：第三方開源專案作者未參與本程式開發，亦不代表其背書。相關商標與技術歸各原作者所有。

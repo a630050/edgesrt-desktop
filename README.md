@@ -69,8 +69,10 @@ build.bat
 
 ```
 edgesrt-desktop\
-├── bin\
-│   └── SoundVolumeView.exe # 音訊端點快速切換工具（NirSoft，第三方）
+├── bin\                     # 音訊端點快速切換工具（NirSoft SoundVolumeView，第三方，附完整授權套件）
+│   ├── SoundVolumeView.exe
+│   ├── SoundVolumeView.chm
+│   └── readme.txt
 ├── capturer\
 │   └── index.html          # Web Speech API 辨識引擎與 WebSocket 通訊頁
 ├── ui\
@@ -106,18 +108,23 @@ edgesrt-desktop\
 
 本程式專為聾人、聽障朋友及多音源即時轉錄輔助需求開發，秉持**公益無償、輔助溝通**之初衷提供使用，全無商業營利行為。
 
-### 使用之第三方開源套件與技術
+### 使用之第三方套件與技術
 
 | 套件 / 工具 | 用途 | 授權 |
 |---|---|---|
 | [PyQt6](https://www.riverbankcomputing.com/software/pyqt/)（Riverbank Computing） | 高效能 GUI 桌面框架 | GPL v3 |
+| [PyQt6-Qt6](https://www.qt.io/)（PyQt6 依賴，內含 Qt6 核心函式庫） | 底層 UI 渲染引擎 | LGPL v3 |
+| [PyQt6-sip](https://github.com/Python-SIP/sip) | PyQt6 的 Python/C++ 綁定橋接層 | BSD-2-Clause |
 | [aiohttp](https://github.com/aio-libs/aiohttp) | 非同步 HTTP 與 WebSocket 串流伺服端 | Apache 2.0 |
 | [comtypes](https://github.com/enthought/comtypes) | Windows Core Audio API 底層端點列舉 | MIT License |
 | [pywin32](https://github.com/mhammond/pywin32) | Windows 系統整合與 Win32 API 調用 | PSF License |
-| [SoundVolumeView](https://www.nirsoft.net/utils/sound_volume_view.html)（NirSoft） | Windows 預設錄音端點快速切換工具 | Freeware |
-| Web Speech API | Microsoft Edge / Chromium 即時語音辨識雲端引擎 | — |
+| [SoundVolumeView](https://www.nirsoft.net/utils/sound_volume_view.html)（NirSoft） | Windows 預設錄音端點快速切換工具 | Freeware＊ |
+| [PyInstaller](https://pyinstaller.org/) | 打包為單檔執行檔，其 bootloader 會嵌入編譯後的 exe | GPL v2（附帶授權例外條款，允許以任意授權散布編譯後的應用程式） |
+| Web Speech API | Microsoft Edge / Chromium 即時語音辨識雲端引擎 | 微軟專有服務，非套件 |
 
 *註：第三方開源專案作者未參與本程式開發，亦不代表其背書。相關商標與技術歸各原作者所有。*
+
+**＊ SoundVolumeView 原始授權條款**（節錄自 [NirSoft 官方頁面](https://www.nirsoft.net/utils/sound_volume_view.html)）：「You are allowed to freely distribute this utility via floppy disk, CD-ROM, Internet, or in any other way, as long as you don't charge anything for this and you don't sell it or distribute it as a part of commercial product. If you distribute this utility, you must include all files in the distribution package, without any modification!」——本專案 `bin/` 內含 `SoundVolumeView.exe`、`SoundVolumeView.chm`、`readme.txt` 三個檔案，與官方 `soundvolumeview-x64.zip` 套件內容一致（`.exe` 已比對 SHA256 checksum 完全相符、未經修改）。
 
 ### 免責聲明
 
