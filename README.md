@@ -2,6 +2,14 @@
 
 專為聽障、聽損人士及多音源轉錄需求（線上會議、課程、市話錄音、現場授課）設計的本機桌面應用。在背景靜默啟動 Microsoft Edge，透過其高精度 Web Speech API 雲端模型，實現毫秒級語音轉文字與多音源一鍵無縫切流。
 
+![程式截圖](image.png)
+
+## 📥 下載
+
+免安裝 Python 環境，直接下載打包好的單檔執行檔（Windows）：
+
+**[⬇️ 下載 EdgeSRT-Desktop.exe](https://u.pcloud.link/publink/show?code=XZFUF5JZPIKoY1gwCFX2PD4F8BPX0FkQQdEy)**
+
 ---
 
 ## 🌟 核心特性
@@ -89,3 +97,28 @@ edgesrt-desktop\
 - Windows 10 / 11
 - Python 3.10+（僅開發模式需要；打包後的 exe 不需要）
 - Microsoft Edge（提供語音辨識引擎）
+
+---
+
+## 授權聲明
+
+本程式由徐承佑獨立開發與維護，如有使用意見歡迎回饋 **[llm0968@gmail.com](mailto:llm0968@gmail.com)**。
+
+本程式專為聾人、聽障朋友及多音源即時轉錄輔助需求開發，秉持**公益無償、輔助溝通**之初衷提供使用，全無商業營利行為。
+
+### 使用之第三方開源套件與技術
+
+| 套件 / 工具 | 用途 | 授權 |
+|---|---|---|
+| [PyQt6](https://www.riverbankcomputing.com/software/pyqt/)（Riverbank Computing） | 高效能 GUI 桌面框架 | GPL v3 |
+| [aiohttp](https://github.com/aio-libs/aiohttp) | 非同步 HTTP 與 WebSocket 串流伺服端 | Apache 2.0 |
+| [comtypes](https://github.com/enthought/comtypes) | Windows Core Audio API 底層端點列舉 | MIT License |
+| [pywin32](https://github.com/mhammond/pywin32) | Windows 系統整合與 Win32 API 調用 | PSF License |
+| [SoundVolumeView](https://www.nirsoft.net/utils/sound_volume_view.html)（NirSoft） | Windows 預設錄音端點快速切換工具 | Freeware |
+| Web Speech API | Microsoft Edge / Chromium 即時語音辨識雲端引擎 | — |
+
+*註：第三方開源專案作者未參與本程式開發，亦不代表其背書。相關商標與技術歸各原作者所有。*
+
+### 免責聲明
+
+本程式依「現狀」（AS IS）提供，開發者對本程式之正確性、即時性、語音辨識率不作任何明示或暗示之擔保。因使用本程式所產生之任何直接、間接損害或辨識遺漏，開發者概不承擔任何法律與經濟責任。
