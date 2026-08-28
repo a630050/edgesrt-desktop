@@ -80,6 +80,8 @@ class CaptureServer:
         self._runner: Optional[web.AppRunner] = None
         self._site: Optional[web.TCPSite] = None
         self._edge_proc: Optional[subprocess.Popen] = None
+        self._edge_hidden = True
+        self._last_edge_launch_at = 0.0
         self.running = False
 
     async def _handle_index(self, request):
@@ -110,9 +112,11 @@ class CaptureServer:
                             self.on_final_text(text)
                         elif event == "volume" and self.on_volume:
                             self.on_volume(int(data.get("volume", 0)))
+                        elif event == "speech_status" and self.on_status_change:
+                            self.on_status_change(f"Edge 語音狀態: {data.get('status', '')}")
                         elif event == "error" and self.on_status_change:
                             err_val = str(data.get("error", "")).strip()
-                            if err_val and err_val not in ("aborted", "no-speech", "network"):
+                            if err_val and err_val != "aborted":
                                 self.on_status_change(f"語音辨識提示: {err_val}")
                     except Exception as e:
                         logger.error(f"解析 WebSocket 訊息異常: {e}")
@@ -137,6 +141,33 @@ class CaptureServer:
             if os.path.isfile(p):
                 return p
         return None
+
+    def _get_edge_user_data_dir(self) -> str:
+        _appdata_dir = os.environ.get("EDGESRT_APPDATA_DIR", os.path.join(APP_DIR, "_appdata"))
+        return os.path.join(_appdata_dir, "edge_profile")
+
+    def _terminate_tracked_edge(self):
+        """Terminate the Edge process tree started by this CaptureServer instance."""
+        if not self._edge_proc:
+            return
+
+        pid = self._edge_proc.pid
+        if os.name == 'nt':
+            try:
+                subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3,
+                               creationflags=subprocess.CREATE_NO_WINDOW)
+            except Exception as e:
+                logger.warning(f"終止目前 Edge process tree 失敗 (PID={pid}): {e}")
+        try:
+            self._edge_proc.terminate()
+            self._edge_proc.wait(timeout=1)
+        except Exception:
+            try:
+                self._edge_proc.kill()
+            except Exception:
+                pass
+        self._edge_proc = None
 
     def _suppress_crash_restore(self, user_data_dir: str):
         """
@@ -203,14 +234,14 @@ class CaptureServer:
             pids = [p.strip() for p in result.stdout.splitlines() if p.strip().isdigit()]
             for pid in pids:
                 subprocess.run(["taskkill", "/F", "/T", "/PID", pid],
-                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2,
+                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3,
                                 creationflags=subprocess.CREATE_NO_WINDOW)
             if pids:
                 logger.info(f"啟動前清除 {len(pids)} 個殘留孤兒 Edge 進程 (PID: {', '.join(pids)})")
         except Exception as e:
             logger.warning(f"清除孤兒 Edge 進程異常: {e}")
 
-    def launch_edge(self, hidden=True):
+    def launch_edge(self, hidden=True, force=False):
         """啟動 Edge 背景語音擷取器"""
         edge_exe = self._find_edge_path()
         if not edge_exe:
@@ -219,27 +250,14 @@ class CaptureServer:
                 self.on_status_change("未偵測到 Edge 瀏覽器，請先安裝 Edge")
             return
 
-        if self._edge_proc:
-            pid = self._edge_proc.pid
-            if os.name == 'nt':
-                try:
-                    subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)],
-                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=2,
-                                   creationflags=subprocess.CREATE_NO_WINDOW)
-                except Exception:
-                    pass
-            try:
-                self._edge_proc.terminate()
-                self._edge_proc.wait(timeout=1)
-            except Exception:
-                try:
-                    self._edge_proc.kill()
-                except Exception:
-                    pass
-            self._edge_proc = None
+        now = time.monotonic()
+        if not force and now - self._last_edge_launch_at < 3:
+            logger.info("略過過於密集的 Edge 重啟請求")
+            return
 
-        _appdata_dir = os.environ.get("EDGESRT_APPDATA_DIR", os.path.join(APP_DIR, "_appdata"))
-        user_data_dir = os.path.join(_appdata_dir, "edge_profile")
+        self._terminate_tracked_edge()
+
+        user_data_dir = self._get_edge_user_data_dir()
         self._kill_orphaned_edge(user_data_dir)
         os.makedirs(user_data_dir, exist_ok=True)
         self._trim_profile_cache(user_data_dir)
@@ -275,6 +293,7 @@ class CaptureServer:
 
         try:
             self._edge_proc = subprocess.Popen(args)
+            self._last_edge_launch_at = time.monotonic()
             logger.info(f"Edge 擷取器已啟動: PID={self._edge_proc.pid}, URL={url}")
             if hidden and os.name == 'nt':
                 threading.Thread(target=self._hide_edge_window, daemon=True).start()
@@ -334,7 +353,7 @@ class CaptureServer:
                     if disconnected_time >= 16:
                         logger.warning("偵測到 Edge 語音引擎斷線超過 16 秒，正在重新拉起 Edge...")
                         disconnected_time = 0
-                        self.launch_edge(hidden=True)
+                        self.launch_edge(hidden=self._edge_hidden)
                 else:
                     disconnected_time = 0
         except asyncio.CancelledError:
@@ -361,6 +380,10 @@ class CaptureServer:
         """通知 Edge 重啟語音辨識（切換音源或手動刷新時調用）"""
         self.send_command("restart")
 
+    def restart_capturer(self):
+        """Restart the Edge capturer process so Web Speech rebinds to the current input device."""
+        self.launch_edge(hidden=self._edge_hidden, force=True)
+
     def pause_asr(self):
         """暫停語音辨識"""
         self.send_command("stop")
@@ -378,6 +401,7 @@ class CaptureServer:
         if self.running:
             return
         self.running = True
+        self._edge_hidden = hidden_edge
 
         def _run_server():
             self._loop = asyncio.new_event_loop()
@@ -439,6 +463,9 @@ class CaptureServer:
                 except Exception:
                     pass
             self._edge_proc = None
+
+        user_data_dir = self._get_edge_user_data_dir()
+        self._kill_orphaned_edge(user_data_dir)
 
         if self._loop and self._loop.is_running():
             self._loop.call_soon_threadsafe(self._loop.stop)

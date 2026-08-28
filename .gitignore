@@ -15,6 +15,7 @@ _appdata/
 
 # Environments
 venv/
+.venv/
 env/
 .env
 

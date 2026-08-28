@@ -198,6 +198,10 @@
         try {
           if (micStream) return;
           micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+          const track = micStream.getAudioTracks()[0];
+          if (track) {
+            WSClient.send({ event: 'speech_status', status: `audio:${track.label || 'unknown input'}` });
+          }
           const AC = window.AudioContext || window.webkitAudioContext;
           audioContext = new AC();
           analyser = audioContext.createAnalyser();
@@ -275,11 +279,6 @@
         if (isActive) hardRestart();
       }
 
-      // 追蹤「已送出 final 的最後一個 results 索引」，不依賴瀏覽器回報的 event.resultIndex。
-      // 原因：Edge 的連續辨識模式下，resultIndex 有時會跳過尚未 isFinal 的片段，
-      // 導致該片段被直接丟棄不再送出，畫面上呈現「interim 前段文字突然消失」。
-      let lastFinalIndex = -1;
-
       function _createRecognition() {
         const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
         if (!SpeechRec) {
@@ -291,17 +290,40 @@
         r.interimResults = true;
         r.maxAlternatives = 1;
         r.lang = currentLang;
-        lastFinalIndex = -1;
+        r.onstart = () => {
+          statusDot.className = 'dot active';
+          statusText.textContent = `SpeechRecognition started (${currentLang})`;
+          WSClient.send({ event: 'speech_status', status: `started:${currentLang}` });
+        };
+
+        r.onaudiostart = () => {
+          WSClient.send({ event: 'speech_status', status: 'audiostart' });
+        };
+
+        r.onsoundstart = () => {
+          WSClient.send({ event: 'speech_status', status: 'soundstart' });
+        };
+
+        r.onspeechstart = () => {
+          WSClient.send({ event: 'speech_status', status: 'speechstart' });
+        };
+
+        r.onspeechend = () => {
+          WSClient.send({ event: 'speech_status', status: 'speechend' });
+        };
+
+        r.onaudioend = () => {
+          WSClient.send({ event: 'speech_status', status: 'audioend' });
+        };
 
         r.onresult = (event) => {
           let interim = '';
           let final = '';
-          for (let i = lastFinalIndex + 1; i < event.results.length; i++) {
+          for (let i = event.resultIndex; i < event.results.length; i++) {
             const result = event.results[i];
             const t = result[0].transcript;
             if (result.isFinal) {
               final += t;
-              lastFinalIndex = i;
             } else {
               interim += t;
             }
@@ -325,6 +347,8 @@
 
         r.onerror = (event) => {
           const err = event.error;
+          statusText.textContent = `SpeechRecognition error: ${err}`;
+          WSClient.send({ event: 'error', error: err });
           console.warn('語音辨識事件:', err);
           // 'no-speech', 'aborted', 'network' 為正常生命週期與自動重連事件，非致命異常
           if (err === 'no-speech' || err === 'aborted' || err === 'network') {
@@ -342,6 +366,7 @@
         };
 
         r.onend = () => {
+          WSClient.send({ event: 'speech_status', status: 'end' });
           if (!isActive) return;
           _scheduleReconnect();
         };
@@ -398,6 +423,7 @@
           } catch (e) {}
           recognition = null;
         }
+        AudioDetector.destroy();
         reconnectCount = 0;
         lastResultTime = Date.now();
         setTimeout(() => {
@@ -410,6 +436,7 @@
             if (recognition) {
               recognition.start();
               _startHeartbeat();
+              setTimeout(() => AudioDetector.init(), 250);
             }
           } catch (e) {
             _scheduleReconnect();
@@ -424,12 +451,12 @@
         isActive = true;
         reconnectCount = 0;
         lastResultTime = Date.now();
-        AudioDetector.init();
         recognition = _createRecognition();
         if (recognition) {
           try {
             recognition.start();
             _startHeartbeat();
+            setTimeout(() => AudioDetector.init(), 250);
           } catch (e) {
             _scheduleReconnect();
           }

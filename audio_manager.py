@@ -126,6 +126,16 @@ class AudioManager:
         except Exception as e:
             logger.error(f"寫入音訊設定檔失敗: {e}")
 
+    def _default_alias_for_device(self, device_name: str) -> str:
+        """Return the first-run display alias for a Windows capture device."""
+        name = device_name or ""
+        lower_name = name.lower()
+        if "立體聲混音" in name or "混音" in name or "mix" in lower_name:
+            return "電腦聲音"
+        if "usb" in lower_name:
+            return "USB麥克風"
+        return "麥克風"
+
     def get_current_default_device_id(self) -> Optional[str]:
         """取得目前 Windows 預設錄音端點 ID"""
         try:
@@ -183,6 +193,9 @@ class AudioManager:
                         alias = "🎤 USB麥克風"
                     else:
                         alias = dev_name
+
+                if not saved.get("alias", ""):
+                    alias = self._default_alias_for_device(dev_name)
 
                 show_in_topbar = saved.get("show_in_topbar", True)
                 is_default = (dev_id == default_id)

@@ -28,7 +28,13 @@ else:
 
 ICON_PATH = os.path.join(BUNDLE_DIR, "ui", "assets", "app_icon.ico")
 
-_appdata_base = os.path.join(APP_DIR, "_appdata")
+_appdata_base = os.path.join(
+    os.environ.get(
+        "LOCALAPPDATA",
+        os.path.join(os.path.expanduser("~"), "AppData", "Local")
+    ),
+    "EdgeSRT"
+)
 LOG_DIR = os.path.join(_appdata_base, "logs")
 
 try:

@@ -8,6 +8,7 @@
 import os
 import sys
 import html
+import re
 from datetime import datetime
 from typing import Dict, List, Optional
 
@@ -73,6 +74,7 @@ class MainWindow(QMainWindow):
         # 轉錄文字緩衝區
         self.final_paragraphs: List[str] = []
         self.current_interim = ""
+        self._last_render_html = None
         self.active_device_id: Optional[str] = self.audio_manager.get_current_default_device_id()
 
         # 語音後台服務
@@ -398,14 +400,14 @@ class MainWindow(QMainWindow):
         self._render_transcript()
 
         if dev.id == self.active_device_id:
-            self.capture_server.restart_asr()
+            QTimer.singleShot(1200, self.capture_server.restart_capturer)
             return
 
         ok = self.audio_manager.set_default_device(dev.id)
         if ok:
             self.active_device_id = dev.id
             self._refresh_top_source_buttons()
-            self.capture_server.restart_asr()
+            QTimer.singleShot(1200, self.capture_server.restart_capturer)
             self.status_bar.showMessage(f"已成功切換錄音源至：{dev.alias}", 3000)
         else:
             QMessageBox.warning(self, "切換失敗", f"無法切換至所選音源：{dev.name}")
@@ -480,9 +482,11 @@ class MainWindow(QMainWindow):
         prev_scroll = vbar.value()
 
         # 阻斷 textChanged 避免誤觸
-        self.editor.blockSignals(True)
-        self.editor.setHtml(full_html)
-        self.editor.blockSignals(False)
+        if full_html != self._last_render_html:
+            self.editor.blockSignals(True)
+            self.editor.setHtml(full_html)
+            self.editor.blockSignals(False)
+            self._last_render_html = full_html
 
         # 判斷是否強制置底或自動捲動
         if self.chk_force_scroll.isChecked() or self.auto_scroll:
@@ -530,13 +534,64 @@ class MainWindow(QMainWindow):
             self.current_interim = apply_glossary(text, self.glossary)
         self._render_transcript()
 
+    def _normalize_transcript_for_compare(self, text: str) -> str:
+        return re.sub(r"[\s，。！？、,.!?;；：「」『』（）()《》〈〉【】\[\]\"'`~\-—…]+", "", text or "")
+
+    def _normalized_index_map(self, text: str):
+        normalized = []
+        source_indexes = []
+        for index, char in enumerate(text or ""):
+            if self._normalize_transcript_for_compare(char):
+                normalized.append(char)
+                source_indexes.append(index)
+        return "".join(normalized), source_indexes
+
+    def _strip_recent_overlap(self, text: str) -> str:
+        edge_punctuation = " \t\r\n，。！？、,.!?;；：:"
+        if not self.final_paragraphs:
+            return text
+
+        recent_text = "\n".join(self.final_paragraphs[-3:])
+        recent_norm = self._normalize_transcript_for_compare(recent_text)
+        incoming_norm, index_map = self._normalized_index_map(text)
+        if not recent_norm or not incoming_norm:
+            return text
+
+        if incoming_norm in recent_norm:
+            return ""
+
+        min_overlap = 8
+        max_len = min(len(recent_norm), len(incoming_norm))
+
+        # Normal overlap: old suffix + new suffix.
+        for size in range(max_len, min_overlap - 1, -1):
+            if recent_norm.endswith(incoming_norm[:size]):
+                cut = index_map[size - 1] + 1
+                return text[cut:].strip(edge_punctuation)
+
+        # Edge sometimes returns a fresh prefix plus a long block that was already finalized.
+        for size in range(max_len, min_overlap - 1, -1):
+            for start in range(1, len(incoming_norm) - size + 1):
+                if incoming_norm[start:start + size] in recent_norm:
+                    start_pos = index_map[start]
+                    if start_pos > 0 and text[start_pos - 1] not in " \t\r\n，。！？、,.!?;；：「」『』（）()《》〈〉【】[]\"'`~-/—…":
+                        continue
+                    before = text[:start_pos].strip()
+                    after_pos = index_map[start + size - 1] + 1
+                    after = text[after_pos:].strip()
+                    if not self._normalize_transcript_for_compare(after):
+                        after = ""
+                    return (before + (" " if before and after else "") + after).strip(edge_punctuation)
+
+        return text
+
     def _handle_final_text(self, text: str):
         """接收 Final 最終落地字"""
         if not self.is_recording:
             return
         self.lbl_ws_status.setText("🟢 語音辨識中")
         processed = apply_glossary(text, self.glossary)
-        stripped = processed.strip()
+        stripped = self._strip_recent_overlap(processed.strip())
         if stripped:
             # Edge 語音引擎在背景自動重連（斷線重連/僵死恢復）時，偶爾會把重連前
             # 剛落地過的同一段話重新辨識一次並再送一次 final，導致整段文字重複。
@@ -545,7 +600,8 @@ class MainWindow(QMainWindow):
             is_dup = (
                 len(stripped) >= 8
                 and self.final_paragraphs
-                and self.final_paragraphs[-1] == stripped
+                and self._normalize_transcript_for_compare(self.final_paragraphs[-1])
+                    == self._normalize_transcript_for_compare(stripped)
             )
             if not is_dup:
                 self.final_paragraphs.append(stripped)
