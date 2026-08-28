@@ -14,8 +14,11 @@ import logging
 import asyncio
 import threading
 import subprocess
+from dataclasses import asdict
 from typing import Callable, Optional, Set
 from aiohttp import web
+
+from audio_manager import AudioManager
 
 logger = logging.getLogger("CaptureServer")
 
@@ -66,12 +69,14 @@ class CaptureServer:
                  on_interim_text: Optional[Callable[[str], None]] = None,
                  on_final_text: Optional[Callable[[str], None]] = None,
                  on_status_change: Optional[Callable[[str], None]] = None,
-                 on_volume: Optional[Callable[[int], None]] = None):
+                 on_volume: Optional[Callable[[int], None]] = None,
+                 audio_manager: Optional[AudioManager] = None):
         self.port = find_free_port()
         self.on_interim_text = on_interim_text
         self.on_final_text = on_final_text
         self.on_status_change = on_status_change
         self.on_volume = on_volume
+        self.audio_manager = audio_manager or AudioManager()
 
         self._active_clients: Set[web.WebSocketResponse] = set()
         self._loop: Optional[asyncio.AbstractEventLoop] = None
@@ -80,14 +85,118 @@ class CaptureServer:
         self._runner: Optional[web.AppRunner] = None
         self._site: Optional[web.TCPSite] = None
         self._edge_proc: Optional[subprocess.Popen] = None
-        self._edge_hidden = True
+        # Browser-main 架構下已無 WebSocket 客戶端連線（見 index.html），
+        # 隱藏視窗 + 斷線自動重啟這兩個預設值都會造成無法挽回的問題
+        # （隱藏視窗無法讓使用者點擊麥克風授權；watchdog 會誤判永遠斷線
+        # 而每 16 秒無限重啟 Edge），因此預設一律關閉，需要時由呼叫端明確開啟。
+        self._edge_hidden = False
+        self._restart_on_disconnect = False
         self._last_edge_launch_at = 0.0
         self.running = False
+        # Chromium 的「單一實例接管」機制下，Popen 追蹤到的那個 msedge.exe 行程
+        # 有可能瞬間結束、把視窗交棒給既有的殘留行程，導致 _edge_proc.poll() 判斷
+        # 不出視窗其實還活著。因此用「首頁是否曾經被成功要求過」當作更可靠的
+        # 佐證信號，供呼叫端（例如 main.py）判斷 Edge 到底有沒有真的啟動成功。
+        self._page_loaded = False
+
+    @property
+    def page_loaded(self) -> bool:
+        return self._page_loaded
 
     async def _handle_index(self, request):
         """返回語音辨識擷取網頁"""
+        self._page_loaded = True
         html_path = os.path.join(CAPTURER_DIR, "index.html")
         return web.FileResponse(html_path)
+
+    async def _handle_api_devices(self, request):
+        devices = self.audio_manager.list_capture_devices()
+        return web.json_response({
+            "devices": [asdict(device) for device in devices],
+        })
+
+    async def _handle_api_set_default_device(self, request):
+        try:
+            payload = await request.json()
+        except Exception:
+            return web.json_response({"ok": False, "error": "invalid_json"}, status=400)
+
+        device_id = str(payload.get("id", "")).strip()
+        if not device_id:
+            return web.json_response({"ok": False, "error": "missing_device_id"}, status=400)
+
+        known_devices = self.audio_manager.list_capture_devices()
+        if not any(device.id == device_id for device in known_devices):
+            return web.json_response({"ok": False, "error": "device_not_found"}, status=404)
+
+        ok = self.audio_manager.set_default_device(device_id)
+        if not ok:
+            return web.json_response({"ok": False, "error": "set_default_failed"}, status=500)
+
+        for device in known_devices:
+            device.is_default = (device.id == device_id)
+        return web.json_response({
+            "ok": True,
+            "devices": [asdict(device) for device in known_devices],
+        })
+
+    async def _handle_api_save_devices(self, request):
+        try:
+            payload = await request.json()
+        except Exception:
+            return web.json_response({"ok": False, "error": "invalid_json"}, status=400)
+
+        updates = payload.get("devices", [])
+        if not isinstance(updates, list):
+            return web.json_response({"ok": False, "error": "invalid_devices"}, status=400)
+
+        update_map = {}
+        for item in updates:
+            if not isinstance(item, dict):
+                continue
+            device_id = str(item.get("id", "")).strip()
+            if not device_id:
+                continue
+            update_map[device_id] = item
+
+        devices = self.audio_manager.list_capture_devices()
+        for device in devices:
+            item = update_map.get(device.id)
+            if not item:
+                continue
+            alias = str(item.get("alias", device.alias)).strip()
+            if alias:
+                device.alias = alias[:60]
+            if "show_in_topbar" in item:
+                device.show_in_topbar = bool(item.get("show_in_topbar"))
+
+        self.audio_manager.save_configs(devices)
+        return web.json_response({
+            "ok": True,
+            "devices": [asdict(device) for device in devices],
+        })
+
+    async def _handle_api_restart_capturer(self, request):
+        self.restart_capturer()
+        return web.json_response({"ok": True})
+
+    async def _handle_api_command(self, request):
+        try:
+            payload = await request.json()
+        except Exception:
+            return web.json_response({"ok": False, "error": "invalid_json"}, status=400)
+
+        command = str(payload.get("command", "")).strip()
+        if command not in {"start", "stop", "restart"}:
+            return web.json_response({"ok": False, "error": "invalid_command"}, status=400)
+
+        if command == "start":
+            self.resume_asr()
+        elif command == "stop":
+            self.pause_asr()
+        else:
+            self.restart_asr()
+        return web.json_response({"ok": True})
 
     async def _handle_ws(self, request):
         """處理 WebSocket 連線"""
@@ -211,15 +320,16 @@ class CaptureServer:
         if trimmed:
             logger.info(f"已清除 Edge profile 快取: {', '.join(trimmed)}")
 
-    def _kill_orphaned_edge(self, user_data_dir: str):
-        """
-        清除上一次執行殘留的孤兒 Edge 進程（例如上次 App 被強制關閉，未經過
-        stop() 清理，導致 Edge 進程樹留在背景並鎖住 profile 資料夾）。
-        用進程指令列精準比對「本工具自己的 --user-data-dir 路徑」，只會清掉
-        這個工具自己啟動過的 Edge，不會影響使用者平常在用的 Edge 瀏覽器。
+    def _find_edge_pids(self, user_data_dir: str) -> Optional[list]:
+        """查詢目前系統上，指令列帶有這個工具自己 --user-data-dir 路徑的 msedge.exe 行程 PID。
+        用指令列比對而非 Popen 追蹤到的單一 PID，是因為 Chromium 的單一實例接管機制下，
+        Popen 啟動的那個行程有可能瞬間結束、把視窗交棒給既有的行程——查系統實際行程狀態
+        才是可靠的「Edge 到底還活不活著」訊號。
+        回傳 None 代表查詢本身失敗（例如系統忙碌導致 PowerShell 逾時），呼叫端不該把
+        「查不到」跟「確定沒有」混為一談，兩者該有不同的保守判斷。
         """
         if os.name != 'nt':
-            return
+            return []
         try:
             needle = user_data_dir.replace("'", "''")
             ps_cmd = (
@@ -231,15 +341,45 @@ class CaptureServer:
                 capture_output=True, text=True, timeout=6,
                 creationflags=subprocess.CREATE_NO_WINDOW
             )
-            pids = [p.strip() for p in result.stdout.splitlines() if p.strip().isdigit()]
-            for pid in pids:
+            return [p.strip() for p in result.stdout.splitlines() if p.strip().isdigit()]
+        except Exception as e:
+            logger.warning(f"查詢 Edge 進程異常: {e}")
+            return None
+
+    def is_edge_alive(self) -> bool:
+        """是否還有這個工具啟動、綁定同一個 profile 的 Edge 行程活著。
+        先用免費的 Popen.poll() 判斷（絕大多數時候都適用）；只有在追蹤到的
+        那個行程看起來已經結束時，才 fallback 去查系統行程（開 PowerShell
+        子行程有成本，且在系統負載高時可能逾時，不該每次輪詢都做）。查詢本身
+        失敗時保守地當作「還活著」，避免因為一次查詢逾時就誤判視窗已關閉。
+        """
+        proc = self._edge_proc
+        if proc and proc.poll() is None:
+            return True
+        if os.name != 'nt':
+            return False
+        pids = self._find_edge_pids(self._get_edge_user_data_dir())
+        return True if pids is None else len(pids) > 0
+
+    def _kill_orphaned_edge(self, user_data_dir: str):
+        """
+        清除上一次執行殘留的孤兒 Edge 進程（例如上次 App 被強制關閉，未經過
+        stop() 清理，導致 Edge 進程樹留在背景並鎖住 profile 資料夾）。
+        用進程指令列精準比對「本工具自己的 --user-data-dir 路徑」，只會清掉
+        這個工具自己啟動過的 Edge，不會影響使用者平常在用的 Edge 瀏覽器。
+        """
+        if os.name != 'nt':
+            return
+        pids = self._find_edge_pids(user_data_dir) or []
+        for pid in pids:
+            try:
                 subprocess.run(["taskkill", "/F", "/T", "/PID", pid],
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3,
                                 creationflags=subprocess.CREATE_NO_WINDOW)
-            if pids:
-                logger.info(f"啟動前清除 {len(pids)} 個殘留孤兒 Edge 進程 (PID: {', '.join(pids)})")
-        except Exception as e:
-            logger.warning(f"清除孤兒 Edge 進程異常: {e}")
+            except Exception as e:
+                logger.warning(f"清除孤兒 Edge 進程異常 (PID={pid}): {e}")
+        if pids:
+            logger.info(f"啟動前清除 {len(pids)} 個殘留孤兒 Edge 進程 (PID: {', '.join(pids)})")
 
     def launch_edge(self, hidden=True, force=False):
         """啟動 Edge 背景語音擷取器"""
@@ -263,12 +403,11 @@ class CaptureServer:
         self._trim_profile_cache(user_data_dir)
         self._suppress_crash_restore(user_data_dir)
 
-        url = f"http://127.0.0.1:{self.port}/"
+        url = f"http://127.0.0.1:{self.port}/?autostart=true"
         args = [
             edge_exe,
             f"--app={url}",
             f"--user-data-dir={user_data_dir}",
-            "--use-fake-ui-for-media-stream",  # 自動允許麥克風權限
             "--no-first-run",
             "--no-default-browser-check",
             "--disable-translate",
@@ -396,12 +535,13 @@ class CaptureServer:
         """切換語音辨識語言 (如 zh-TW, zh-CN, en-US, ja-JP)"""
         self.send_command("setLang", lang=lang)
 
-    def start(self, hidden_edge=True):
+    def start(self, hidden_edge=False, restart_on_disconnect=False):
         """啟動背景服務執行緒"""
         if self.running:
             return
         self.running = True
         self._edge_hidden = hidden_edge
+        self._restart_on_disconnect = restart_on_disconnect
 
         def _run_server():
             self._loop = asyncio.new_event_loop()
@@ -410,6 +550,11 @@ class CaptureServer:
             self._app = web.Application()
             self._app.router.add_get('/', self._handle_index)
             self._app.router.add_get('/ws', self._handle_ws)
+            self._app.router.add_get('/api/audio/devices', self._handle_api_devices)
+            self._app.router.add_post('/api/audio/default', self._handle_api_set_default_device)
+            self._app.router.add_post('/api/audio/devices', self._handle_api_save_devices)
+            self._app.router.add_post('/api/capturer/restart', self._handle_api_restart_capturer)
+            self._app.router.add_post('/api/speech/command', self._handle_api_command)
             self._app.router.add_static('/', CAPTURER_DIR)
 
             self._runner = web.AppRunner(self._app)
@@ -420,8 +565,10 @@ class CaptureServer:
             logger.info(f"Capture Server 運行於: http://127.0.0.1:{self.port}")
             self.launch_edge(hidden=hidden_edge)
 
-            # 啟動 Edge 崩潰守護協程
-            self._watchdog_task = self._loop.create_task(self._edge_watchdog_loop())
+            # Browser-main mode exits when the visible Edge window is closed.
+            self._watchdog_task = None
+            if self._restart_on_disconnect:
+                self._watchdog_task = self._loop.create_task(self._edge_watchdog_loop())
 
             try:
                 self._loop.run_forever()

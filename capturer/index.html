@@ -2,484 +2,2985 @@
 <html lang="zh-TW">
 <head>
   <meta charset="UTF-8">
-  <title>Edge 語音轉錄背景擷取器</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <title>語音轉錄</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      /* 主題色 — 白天模式 (白天模式預設) */
+      --bg-primary: #f0f2f5;
+      --bg-secondary: #e4e7ec;
+      --bg-surface: #ffffff;
+      --bg-elevated: #ffffff;
+      --fg-primary: #1a1d23;
+      --fg-secondary: #5b677d;
+      --fg-muted: #8d96a8;
+      --accent: #4f8ff7;
+      --accent-glow: rgba(79, 143, 247, 0.25);
+      --accent-hover: #6ba0f8;
+      --danger: #e05050;
+      --danger-hover: #d04444;
+      --border-subtle: rgba(0,0,0,0.06);
+      --border-medium: rgba(0,0,0,0.1);
+      --shadow-lg: 0 8px 32px rgba(0,0,0,0.15);
+      --shadow-sm: 0 2px 8px rgba(0,0,0,0.08);
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 20px;
+      --transition-fast: 0.15s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      --transition-med: 0.25s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+
+      /* 可透過設定面板動態覆寫 */
+      --transcript-bg: #ffffff;
+      --transcript-fg: #1a1d23;
+      --transcript-font: system-ui, -apple-system, 'Segoe UI', sans-serif;
+      --transcript-size: 28px;
+      --interim-color: #8d96a8;
+
+      /* 夜晚模式專用 CSS 變數 (由 JS 切換) */
+      --theme-night-bg-primary: #0b0e14;
+      --theme-night-bg-secondary: #000000;
+      --theme-night-bg-surface: #111111;
+      --theme-night-bg-elevated: #1a1a1a;
+      --theme-night-fg-primary: #e8edf5;
+      --theme-night-fg-secondary: #8896ab;
+      --theme-night-fg-muted: #5b6a82;
+      --theme-night-border-subtle: rgba(255,255,255,0.06);
+      --theme-night-border-medium: rgba(255,255,255,0.1);
+      --theme-night-accent: #4f8ff7;
+      --theme-night-accent-glow: rgba(79, 143, 247, 0.25);
+    }
+
+    /* 夜晚模式 class 掛在 html 上 */
+    html.night-theme {
+      --bg-primary: var(--theme-night-bg-primary);
+      --bg-secondary: var(--theme-night-bg-secondary);
+      --bg-surface: var(--theme-night-bg-surface);
+      --bg-elevated: var(--theme-night-bg-elevated);
+      --fg-primary: var(--theme-night-fg-primary);
+      --fg-secondary: var(--theme-night-fg-secondary);
+      --fg-muted: var(--theme-night-fg-muted);
+      --border-subtle: var(--theme-night-border-subtle);
+      --border-medium: var(--theme-night-border-medium);
+      --accent: var(--theme-night-accent);
+      --accent-glow: var(--theme-night-accent-glow);
+      --shadow-lg: 0 8px 32px rgba(0,0,0,0.5);
+      --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
+      --transcript-bg: #000000;
+      --transcript-fg: #ffd700;
+      --interim-color: #ffd700; /* 黃色 (Night mode interim) */
+      color-scheme: dark;
+    }
+
+    /* 🌊 深海 (Ocean) */
+    html[data-theme="ocean"] {
+      --bg-primary: #0d1b2a;
+      --bg-secondary: #16283b;
+      --bg-surface: #1d3348;
+      --bg-elevated: #16283b;
+      --fg-primary: #dce8f0;
+      --fg-secondary: #8fa8bc;
+      --fg-muted: #8fa8bc;
+      --border-subtle: #2c4a63;
+      --border-medium: #2c4a63;
+      --accent: #4f9dc9;
+      --accent-glow: rgba(79, 157, 201, 0.25);
+      --accent-hover: #6fbf9b;
+      --transcript-bg: #0d1b2a;
+      --transcript-fg: #dce8f0;
+      --interim-color: #6fbf9b;
+      color-scheme: dark;
+    }
+
+    /* 📜 羊皮 (Parchment) */
+    html[data-theme="parchment"] {
+      --bg-primary: #f3e9d2;
+      --bg-secondary: #faf3e2;
+      --bg-surface: #efe2c4;
+      --bg-elevated: #faf3e2;
+      --fg-primary: #4a3826;
+      --fg-secondary: #8a7259;
+      --fg-muted: #8a7259;
+      --border-subtle: #d8c5a0;
+      --border-medium: #d8c5a0;
+      --accent: #a97c3f;
+      --accent-glow: rgba(169, 124, 63, 0.25);
+      --accent-hover: #7a8f5c;
+      --transcript-bg: #f3e9d2;
+      --transcript-fg: #4a3826;
+      --interim-color: #7a8f5c;
+      color-scheme: light;
+    }
+
+    /* 🌿 森林 (Forest) */
+    html[data-theme="forest"] {
+      --bg-primary: #eef2ea;
+      --bg-secondary: #f7faf5;
+      --bg-surface: #e4ecdf;
+      --bg-elevated: #f7faf5;
+      --fg-primary: #33422f;
+      --fg-secondary: #71836a;
+      --fg-muted: #71836a;
+      --border-subtle: #c7d6bd;
+      --border-medium: #c7d6bd;
+      --accent: #5f8c5a;
+      --accent-glow: rgba(95, 140, 90, 0.25);
+      --accent-hover: #8aab6f;
+      --transcript-bg: #eef2ea;
+      --transcript-fg: #33422f;
+      --interim-color: #8aab6f;
+      color-scheme: light;
+    }
+
+    /* 🍵 禪風 (Wa) */
+    html[data-theme="wa"] {
+      --bg-primary: #f1ece3;
+      --bg-secondary: #f8f4ec;
+      --bg-surface: #e9e1d2;
+      --bg-elevated: #f8f4ec;
+      --fg-primary: #3c332a;
+      --fg-secondary: #8a7c6a;
+      --fg-muted: #8a7c6a;
+      --border-subtle: #cdbfa8;
+      --border-medium: #cdbfa8;
+      --accent: #9c6b53;
+      --accent-glow: rgba(156, 107, 83, 0.25);
+      --accent-hover: #6f8a80;
+      --transcript-bg: #f1ece3;
+      --transcript-fg: #3c332a;
+      --interim-color: #6f8a80;
+      color-scheme: light;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg-primary);
+    }
+
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-      background: #0f172a;
-      color: #f8fafc;
       display: flex;
       flex-direction: column;
+      font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+      color: var(--fg-primary);
+      background: var(--bg-primary);
+    }
+
+    /* ── Toolbar ── */
+    #toolbar {
+      display: flex;
       align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-      padding: 20px;
+      gap: 6px;
+      padding: 8px 14px;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-medium);
+      flex-shrink: 0;
+      flex-wrap: wrap;
+      min-height: 54px;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
     }
-    .card {
-      background: #1e293b;
-      border: 1px solid #334155;
-      border-radius: 12px;
-      padding: 24px;
-      max-width: 500px;
-      width: 100%;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.4);
-      text-align: center;
-    }
-    h1 { font-size: 20px; margin-bottom: 12px; color: #38bdf8; }
-    .status-badge {
-      display: inline-flex;
+
+    #toolbar .left-group {
+      display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 6px 14px;
-      border-radius: 9999px;
-      background: #334155;
-      font-size: 14px;
-      margin-bottom: 16px;
+      gap: 6px;
+      flex: 1;
+      min-width: 0;
+      flex-wrap: wrap;
     }
-    .dot {
+
+    #toolbar .right-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .mic-status {
+      display: flex;
+      align-items: center;
+      padding: 4px 10px;
+      background: var(--bg-elevated);
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border-medium);
+      font-size: 12px;
+      color: var(--fg-secondary);
+      max-width: 250px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* ── 工具列分隔線 ── */
+    .toolbar-divider {
+      width: 1px;
+      height: 28px;
+      background: var(--border-medium);
+      flex-shrink: 0;
+      margin: 0 4px;
+    }
+
+    /* ── 錄音指示燈 ── */
+    #rec-dot {
       width: 10px;
       height: 10px;
       border-radius: 50%;
-      background: #ef4444;
+      background: transparent;
+      flex-shrink: 0;
+      transition: background var(--transition-fast);
+      box-shadow: 0 0 6px rgba(255,0,0,0);
     }
-    .dot.active { background: #22c55e; box-shadow: 0 0 10px #22c55e; }
-    .dot.reconnecting { background: #eab308; }
-    .meter-container {
-      width: 100%;
-      height: 12px;
-      background: #334155;
-      border-radius: 6px;
+    #rec-dot.active {
+      background: #f05454;
+      box-shadow: 0 0 10px rgba(240,84,84,0.5);
+      animation: pulse 1.1s ease-in-out infinite;
+    }
+    #rec-dot.reconnecting {
+      background: #f5c518;
+      box-shadow: 0 0 10px rgba(245,197,24,0.5);
+      animation: pulse 0.7s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.5; transform: scale(0.8); }
+    }
+
+    /* ── 通用按鈕 ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all var(--transition-fast);
+      white-space: nowrap;
+      user-select: none;
+      -webkit-user-select: none;
+      background: var(--bg-elevated);
+      color: var(--fg-primary);
+      border: 1px solid var(--border-subtle);
+      line-height: 1.3;
+    }
+    .btn:hover { background: rgba(255,255,255,0.08); border-color: var(--border-medium); }
+    .btn:active { transform: scale(0.96); }
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+
+    .btn-icon {
+      padding: 7px 10px;
+      font-size: 15px;
+      min-width: 34px;
+    }
+
+    #start-btn {
+      background: var(--accent);
+      color: #fff;
+      border-color: transparent;
+      font-weight: 600;
+      padding: 7px 16px;
+      box-shadow: 0 0 16px var(--accent-glow);
+    }
+    #start-btn:hover:not(:disabled) { background: var(--accent-hover); box-shadow: 0 0 24px var(--accent-glow); }
+    #start-btn.recording {
+      background: var(--danger);
+      box-shadow: 0 0 16px rgba(240,84,84,0.3);
+    }
+    #start-btn.recording:hover { background: var(--danger-hover); }
+
+    .btn-copy { }
+    .btn-save { }
+
+    /* ── 選擇框 ── */
+    select.toolbar-select {
+      padding: 0 10px 0 10px;
+      height: 34px;
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-sm);
+      background: var(--bg-elevated);
+      color: var(--fg-primary);
+      font-size: 13px;
+      cursor: pointer;
+      appearance: none;
+      -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%235b677d'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 10px center;
+      padding-right: 28px;
+      transition: border-color var(--transition-fast);
+    }
+    select.toolbar-select:hover { border-color: rgba(255,255,255,0.2); }
+    select.toolbar-select:focus { outline: none; border-color: var(--accent); }
+    select.toolbar-select:disabled { opacity: 0.35; cursor: not-allowed; }
+    select.toolbar-select option { background: var(--bg-surface); color: var(--fg-primary); }
+    #audio-source-select {
+      width: 150px;
+      max-width: 22vw;
+    }
+
+    #lang-select {
+      max-width: 110px;
+    }
+
+    #author-btn {
+      background: transparent;
+      color: var(--fg-muted);
+      border: 1px solid var(--border-subtle);
+      padding: 5px 10px;
+      font-size: 11px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+    #author-btn:hover { background: rgba(255,255,255,0.06); color: var(--fg-secondary); border-color: var(--border-medium); }
+
+    #settings-btn {
+      background: transparent;
+      color: var(--fg-secondary);
+      border: 1px solid var(--border-subtle);
+      padding: 7px 10px;
+      font-size: 16px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all var(--transition-fast);
+    }
+    #settings-btn:hover { background: rgba(255,255,255,0.06); border-color: var(--border-medium); }
+
+    /* ── API warning banner ── */
+    #api-warning {
+      display: none;
+      background: rgba(255, 193, 7, 0.12);
+      color: #ffc107;
+      border-bottom: 1px solid rgba(255, 193, 7, 0.2);
+      padding: 8px 14px;
+      font-size: 13px;
+      flex-shrink: 0;
+    }
+    #api-warning.visible { display: block; }
+
+    /* ── Fullscreen Mode ── */
+    body.fullscreen-mode #toolbar,
+    body.fullscreen-mode #status-bar,
+    body.fullscreen-mode #api-warning {
+      display: none !important;
+    }
+    body.fullscreen-mode #transcript {
+      padding-top: 40px;
+    }
+
+    /* ── Main transcript area ── */
+    #main {
+      flex: 1;
       overflow: hidden;
-      margin-bottom: 16px;
+      position: relative;
     }
-    .meter-fill {
-      width: 0%;
+
+    #transcript {
+      width: 100%;
       height: 100%;
-      background: linear-gradient(90deg, #38bdf8, #22c55e);
-      transition: width 0.08s ease;
+      overflow-y: auto;
+      padding: 20px 24px 100px;
+      background: var(--transcript-bg);
+      color: var(--transcript-fg);
+      font-family: var(--transcript-font);
+      font-size: var(--transcript-size);
+      line-height: var(--transcript-line-height, 1.2);
+      outline: none;
+      word-break: break-word;
+      white-space: pre-wrap;
+      caret-color: var(--transcript-fg);
+      transition: box-shadow var(--transition-med), max-width var(--transition-med), background var(--transition-med), color var(--transition-med), font-size var(--transition-med);
+      scroll-behavior: smooth;
     }
-    .text-preview {
-      background: #0f172a;
-      border: 1px solid #334155;
+    #transcript.recording-glow {
+      box-shadow: inset 0 0 0 1px var(--accent-glow), inset 0 0 30px rgba(79,143,247,0.03);
+    }
+    #transcript[contenteditable="false"] {
+      cursor: default;
+      user-select: text;
+      -webkit-user-select: text;
+    }
+    #transcript p {
+      min-height: calc(var(--transcript-line-height, 1.2) * 1em);
+      margin: 0;
+    }
+    #transcript p + p {
+      margin-top: 3px;
+    }
+    .interim {
+      color: var(--interim-color);
+    }
+
+    /* 滾動條美化 */
+    #transcript::-webkit-scrollbar {
+      width: 6px;
+    }
+    #transcript::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    #transcript::-webkit-scrollbar-thumb {
+      background: var(--border-medium);
+      border-radius: 3px;
+    }
+    #transcript::-webkit-scrollbar-thumb:hover {
+      background: var(--fg-muted);
+    }
+
+    /* ── Jump to bottom button ── */
+    #jump-btn {
+      display: none;
+      position: absolute;
+      bottom: 24px;
+      right: 24px;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      font-size: 18px;
+      cursor: pointer;
+      box-shadow: var(--shadow-sm);
+      transition: all var(--transition-fast);
+      z-index: 10;
+      line-height: 1;
+    }
+    #jump-btn:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: var(--shadow-lg); }
+    #jump-btn:active { transform: scale(0.92); }
+
+    /* ── Settings Panel ── */
+    #settings-panel {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      right: auto;
+      width: min(640px, 92vw);
+      max-height: 85vh;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-lg);
+      transform: translate(-50%, -50%) scale(0.96);
+      opacity: 0;
+      pointer-events: none;
+      transition: transform var(--transition-med), opacity var(--transition-med);
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+    #settings-panel.open {
+      transform: translate(-50%, -50%) scale(1);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    #settings-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 99;
+    }
+    #settings-overlay.visible { display: block; }
+
+    .settings-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-medium);
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--fg-primary);
+      flex-shrink: 0;
+    }
+    #settings-close {
+      background: none;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+      color: var(--fg-muted);
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: background var(--transition-fast);
+    }
+    #settings-close:hover { background: rgba(255,255,255,0.08); color: var(--fg-primary); }
+
+    .settings-body {
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .setting-row {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .settings-columns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    .settings-column {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+      min-width: 0;
+    }
+    .setting-row label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--fg-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .setting-row .control-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .audio-alias-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .audio-alias-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 170px;
+      gap: 8px;
+      align-items: center;
+      padding: 8px;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      background: var(--bg-elevated);
+    }
+    .audio-alias-name {
+      min-width: 0;
+      color: var(--fg-secondary);
+      font-size: 12px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .audio-alias-row input {
+      width: 100%;
+      min-width: 0;
+      height: 32px;
+      padding: 0 9px;
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-sm);
+      background: var(--bg-primary);
+      color: var(--fg-primary);
+      font-size: 13px;
+    }
+    .audio-alias-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    .color-preview {
+      width: 36px;
+      height: 36px;
       border-radius: 8px;
-      padding: 12px;
-      min-height: 60px;
-      font-size: 14px;
-      color: #94a3b8;
-      text-align: left;
-      word-break: break-all;
+      border: 1px solid var(--border-medium);
+      flex-shrink: 0;
+      cursor: pointer;
+      transition: border-color var(--transition-fast);
     }
-    .interim { color: #38bdf8; }
+    .color-preview:hover { border-color: var(--accent); }
+    input[type="color"] {
+      width: 0;
+      height: 0;
+      opacity: 0;
+      position: absolute;
+    }
+
+    #set-font {
+      width: 100%;
+      padding: 9px 10px;
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-sm);
+      font-size: 13px;
+      background: var(--bg-elevated);
+      color: var(--fg-primary);
+      cursor: pointer;
+    }
+    #set-font:focus { outline: none; border-color: var(--accent); }
+    #set-font option { background: var(--bg-surface); color: var(--fg-primary); }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    input[type="range"] {
+      flex: 1;
+      height: 4px;
+      -webkit-appearance: none;
+      appearance: none;
+      background: rgba(255,255,255,0.1);
+      border-radius: 2px;
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      background: var(--accent);
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 0 8px var(--accent-glow);
+      transition: transform var(--transition-fast);
+    }
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.15);
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      background: var(--accent);
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+    }
+    #set-size-out,
+    #set-line-height-out {
+      font-size: 13px;
+      color: var(--fg-secondary);
+      min-width: 36px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: rgba(15,21,30,0.92);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      color: #ffffff;
+      padding: 10px 22px;
+      border-radius: 12px;
+      font-size: 13px;
+      z-index: 200;
+      transition: transform 0.3s, opacity 0.3s;
+      opacity: 0;
+      pointer-events: none;
+      white-space: nowrap;
+      max-width: 90vw;
+      text-align: center;
+      border: 1px solid rgba(255,255,255,0.06);
+      box-shadow: var(--shadow-lg);
+    }
+    #toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    /* ── 狀態計數器（可選） ── */
+    #status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 14px;
+      background: var(--bg-secondary);
+      border-top: 1px solid var(--border-subtle);
+      flex-shrink: 0;
+      font-size: 11px;
+      color: var(--fg-primary);
+    }
+    #status-bar .left-stats {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex: 1;
+    }
+    #status-bar .center-stats {
+      flex: 1;
+      text-align: center;
+    }
+    #status-bar .right-stats {
+      flex: 1;
+      display: flex;
+      justify-content: flex-end;
+    }
+    #status-bar .stat {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    #status-bar .stat.good { color: #4caf50; }
+    #status-bar .stat.warn { color: #f5c518; }
+    #status-bar .stat.bad { color: #f05454; }
+    /* ── 行動裝置響應式 (RWD) ── */
+    @media (max-width: 768px) {
+      #toolbar {
+        display: grid;
+        grid-template-columns: 40px 88px minmax(0, 1fr) 40px 40px 40px;
+        grid-template-areas:
+          "help start mic mic copy settings"
+          "lang lang clear glossary glossary save";
+        align-items: stretch;
+        gap: 6px;
+        padding: 6px 8px;
+        min-height: 0;
+      }
+      #toolbar .left-group,
+      #toolbar .right-group {
+        display: contents;
+      }
+      #instruction-btn { grid-area: help; }
+      #start-btn { grid-area: start; }
+      .mic-status { grid-area: mic; }
+      #lang-select { grid-area: lang; }
+      #clear-btn { grid-area: clear; }
+      #glossary-btn { grid-area: glossary; }
+      #copy-btn { grid-area: copy; }
+      #save-btn { grid-area: save; }
+      #settings-btn { grid-area: settings; }
+      #author-btn,
+      #license-btn,
+      #rec-dot,
+      .toolbar-divider {
+        display: none;
+      }
+      .btn,
+      #settings-btn {
+        min-height: 38px;
+        padding: 0 10px;
+        font-size: 13px;
+        border-radius: 10px;
+      }
+      .btn-icon,
+      #settings-btn,
+      .btn-copy,
+      .btn-save {
+        width: 40px;
+        min-width: 40px;
+        padding: 0;
+        font-size: 18px;
+      }
+      #start-btn {
+        min-width: 0;
+        width: 100%;
+        padding: 0 12px;
+        font-size: 14px;
+      }
+      .mic-status {
+        min-width: 0;
+        max-width: none;
+        height: 38px;
+        padding: 0 10px;
+        font-size: 12px;
+      }
+      #lang-select {
+        width: 100%;
+        max-width: none;
+        height: 38px;
+        font-size: 13px;
+      }
+      #clear-btn,
+      #glossary-btn {
+        width: 100%;
+      }
+      #transcript {
+        padding: 14px 16px 88px;
+      }
+      
+      /* 設定面板改為從底部滑出的 Bottom Sheet */
+      #settings-panel {
+        width: 100%;
+        max-height: none;
+        right: 0 !important;
+        left: 0;
+        top: auto;
+        bottom: -100%;
+        height: 85vh;
+        border-radius: 20px 20px 0 0;
+        border-left: none;
+        border-top: 1px solid var(--border-medium);
+        transform: none;
+        opacity: 1;
+        pointer-events: auto;
+        transition: bottom 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        box-shadow: 0 -4px 24px rgba(0,0,0,0.15);
+      }
+      #settings-panel.open {
+        bottom: 0 !important;
+      }
+      .settings-columns {
+        grid-template-columns: 1fr;
+        gap: 24px;
+      }
+
+      #toast {
+        max-width: 80vw;
+        padding: 8px 16px;
+        font-size: 12px;
+      }
+    }
+
+    #license-btn {
+      background: none;
+      border: none;
+      color: inherit;
+      cursor: pointer;
+      font-size: 11px;
+      text-decoration: underline;
+      transition: color var(--transition-fast);
+    }
+    #license-btn:hover {
+      color: var(--fg-primary);
+    }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 150;
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.visible { display: flex; }
+    
+    .modal-content {
+      background: var(--bg-surface);
+      width: min(500px, 90vw);
+      max-height: 85vh;
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-lg);
+      border: 1px solid var(--border-medium);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      animation: modal-in 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+    }
+    
+    @keyframes modal-in {
+      from { opacity: 0; transform: scale(0.95) translateY(10px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+    
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border-medium);
+      background: var(--bg-secondary);
+    }
+    
+    .modal-header h2 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--fg-primary);
+      margin: 0;
+    }
+    
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 20px;
+      cursor: pointer;
+      color: var(--fg-muted);
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: background var(--transition-fast);
+    }
+    .modal-close:hover { background: rgba(255,255,255,0.08); color: var(--fg-primary); }
+    
+    .modal-body {
+      padding: 24px 20px;
+      font-size: 14px;
+      color: var(--fg-secondary);
+      line-height: 1.6;
+      overflow-y: auto;
+      min-height: 0;
+    }
+    
+    .modal-body h3 {
+      font-size: 15px;
+      color: var(--fg-primary);
+      margin: 0 0 8px 0;
+    }
+    
+    .modal-body p {
+      margin: 0 0 20px 0;
+    }
+    .modal-body p:last-child {
+      margin: 0;
+    }
+
+    /* ── 辭彙替換表 ── */
+    .modal-content--wide {
+      width: min(620px, 92vw);
+    }
+    .glossary-hint {
+      font-size: 12px;
+      color: var(--fg-muted);
+      margin: 0 0 12px 0;
+      line-height: 1.6;
+    }
+    .glossary-table-wrap {
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid var(--border-medium);
+      border-radius: 6px;
+      margin-bottom: 10px;
+      background: var(--bg-surface);
+    }
+    .glossary-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      color: var(--fg-primary);
+    }
+    .glossary-table th {
+      position: sticky;
+      top: 0;
+      background: var(--bg-secondary);
+      border-bottom: 1px solid var(--border-medium);
+      text-align: left;
+      padding: 6px 10px;
+      font-weight: 600;
+      z-index: 1;
+    }
+    .glossary-table td {
+      padding: 5px 10px;
+      border-bottom: 1px solid var(--border-medium);
+      vertical-align: middle;
+    }
+    .glossary-table tr:last-child td {
+      border-bottom: none;
+    }
+    .glossary-table input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 3px 6px;
+      font-size: 13px;
+      border: 1px solid var(--border-medium);
+      border-radius: 4px;
+      background: var(--bg-surface);
+      color: var(--fg-primary);
+    }
+    .glossary-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .glossary-status {
+      margin-top: 10px;
+      font-size: 12px;
+      min-height: 18px;
+      color: var(--fg-muted);
+    }
+    .glossary-status.is-success { color: #4caf50; }
+    .glossary-status.is-error { color: #e74c3c; }
   </style>
 </head>
 <body>
-  <div class="card">
-    <h1>🎙️ Edge 語音轉錄引擎（背景運作中）</h1>
-    <div class="status-badge">
-      <div id="status-dot" class="dot"></div>
-      <span id="status-text">正在連接後台服務...</span>
+
+<!-- UA Spoofing: attempt to present as Edge desktop -->
+<script>
+  (function() {
+    window.__EDGE_SRT_REAL_UA = navigator.userAgent || '';
+    window.__EDGE_SRT_REAL_PLATFORM = navigator.platform || '';
+    window.__EDGE_SRT_REAL_TOUCH_POINTS = navigator.maxTouchPoints || 0;
+    const desktopUA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0';
+    try {
+      Object.defineProperty(navigator, 'userAgent', { value: desktopUA, configurable: true, writable: false });
+    } catch(e) {}
+    try {
+      Object.defineProperty(navigator, 'platform', { value: 'Win32', configurable: true });
+    } catch(e) {}
+    try {
+      Object.defineProperty(navigator, 'maxTouchPoints', { value: 0, configurable: true });
+    } catch(e) {}
+  })();
+</script>
+
+<!-- 工具列 Toolbar -->
+<div id="toolbar">
+  <div class="left-group">
+    <button class="btn btn-icon" id="instruction-btn" title="使用說明">❓</button>
+    <span id="rec-dot"></span>
+    <button class="btn" id="start-btn">▶ 啟動</button>
+    <div class="mic-status" title="此為當前使用的系統麥克風">
+      <span id="current-mic-name">🎤 讀取麥克風中...</span>
     </div>
-    <div class="meter-container">
-      <div id="audio-meter" class="meter-fill"></div>
+    <select class="toolbar-select" id="audio-source-select" title="切換系統錄音來源">
+      <option value="">讀取音源中...</option>
+    </select>
+    <select class="toolbar-select" id="lang-select" title="辨識語言">
+      <option value="zh-TW">繁體中文</option>
+      <option value="en-US">English</option>
+      <option value="ja-JP">日本語</option>
+      <option value="ko-KR">한국어</option>
+      <option value="fr-FR">Français (法語)</option>
+      <option value="es-ES">Español (西語)</option>
+      <option value="de-DE">Deutsch (德語)</option>
+    </select>
+    <button class="btn" id="clear-btn" title="清除全部文字">🗑️ 清除</button>
+    <button class="btn" id="glossary-btn" title="辭彙替換表：設定語音轉錄常見誤轉辭彙的自動替換（interim 即時文字與落地文字都會套用）">辭彙替換表</button>
+  </div>
+  <div class="right-group">
+    <div class="toolbar-divider"></div>
+    <button class="btn btn-icon btn-copy" id="copy-btn" title="複製全文">📋</button>
+    <button class="btn btn-icon btn-save" id="save-btn" title="另存為 TXT">💾</button>
+    <div class="toolbar-divider"></div>
+    <button id="author-btn" title="切換黑底黃字模式">作者：徐承佑</button>
+    <button class="btn btn-icon" id="settings-btn" title="設定">⚙</button>
+  </div>
+</div>
+
+<!-- API 警告 banner -->
+<div id="api-warning">⚠ 此瀏覽器不支援語音辨識 API，請使用 Microsoft Edge 或 Chrome 桌面版。</div>
+
+<!-- 轉錄文字區域 -->
+<div id="main">
+  <div id="transcript" contenteditable="true" spellcheck="false"
+       role="textbox" aria-multiline="true" aria-label="轉錄文字"></div>
+  <button id="jump-btn" title="跳至最新">↓</button>
+</div>
+
+
+<!-- 說明面板 Instructions Modal -->
+<div id="instruction-modal" class="modal-overlay">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>📖 使用說明</h2>
+      <button class="modal-close" id="instruction-close">✕</button>
     </div>
-    <div class="text-preview">
-      <span id="final-text"></span>
-      <span id="interim-text" class="interim"></span>
+    <div class="modal-body">
+      <h3 style="font-size: 16px; margin-bottom: 10px;">🌐 1. 請用 Edge 瀏覽器</h3>
+      <p style="margin-bottom: 24px;">為了最佳語音辨識效果，請務必使用 <strong>Microsoft Edge</strong> 瀏覽器開啟本網頁。💯</p>
+      
+      <h3 style="font-size: 16px; margin-bottom: 10px;">🎤 2. 怎麼換麥克風？</h3>
+      <ul style="margin: 0 0 16px 24px; padding: 0; line-height: 1.8;">
+        <li><strong>第一步：</strong>請先點擊左上角的「<strong>▶ 啟動</strong>」，此時網頁上方網址列右側才會出現麥克風圖示。</li>
+        <li><strong>第二步：</strong>若發現聲音來源不對，請點擊網址列的 <strong>麥克風圖示 (🎤)</strong> 或是 <strong>鎖頭圖示 (🔒)</strong>。</li>
+        <li><strong>第三步：</strong>點擊 <strong>「管理」</strong> 或 <strong>「網站設定」</strong>，選擇你要的聲音輸入來源。</li>
+        <li><strong>完成！</strong>滑鼠點回網頁，系統就會「自動刷新」並切換過去囉！✨</li>
+      </ul>
     </div>
   </div>
+</div>
 
-  <script>
-    const statusDot = document.getElementById('status-dot');
-    const statusText = document.getElementById('status-text');
+<!-- 授權聲明面板 License Modal -->
+<div id="license-modal" class="modal-overlay">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2>⚖️ 第三方授權聲明</h2>
+      <button class="modal-close" id="license-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <h3>Web Speech API & Microsoft Edge</h3>
+      <p>語音辨識核心技術基於現代瀏覽器之 <strong>Web Speech API</strong>，並深度依賴 <strong>Microsoft Edge</strong> (或 Google Chrome) 內建的語音引擎。Microsoft Edge 為微軟公司 (Microsoft Corporation) 之商標。</p>
 
-    // ─────────────────────────────────────────────
-    // WebSocket 客戶端 (WSClient)
-    // ─────────────────────────────────────────────
-    const WSClient = (() => {
-      let ws = null;
-      let isConnected = false;
-      let retryCount = 0;
-      let reconnectTimer = null;
+      <h3>SoundVolumeView（NirSoft）</h3>
+      <p>系統錄音裝置的偵測與啟用功能，隨附使用 <strong>SoundVolumeView</strong>（作者 Nir Sofer，NirSoft）之免費工具，本程式未對其任何檔案進行修改。原始授權條款節錄：「You are allowed to freely distribute this utility ... as long as you don't charge anything for this and you don't sell it or distribute it as a part of commercial product. If you distribute this utility, you must include all files in the distribution package, without any modification!」本程式為免費非商業用途，且完整保留 SoundVolumeView.exe、SoundVolumeView.chm、readme.txt 三個原始檔案於安裝目錄，符合上述授權條件。</p>
 
-      function connect() {
-        if (reconnectTimer) {
-          clearTimeout(reconnectTimer);
-          reconnectTimer = null;
+      <h3>Python 執行環境套件</h3>
+      <p>本程式之 Windows 背景服務以 Python 撰寫，使用以下開源套件：<strong>aiohttp</strong>（Apache License 2.0，本機 HTTP／WebSocket 伺服端）、<strong>comtypes</strong>（MIT License，Windows Core Audio API 呼叫）、<strong>pywin32</strong>（PSF License，Windows 系統整合）。</p>
+
+      <h3>PyInstaller</h3>
+      <p>本專案之 Windows 獨立執行檔 (.exe) 係使用開源工具 <strong>PyInstaller</strong>（GPL v2，附帶授權例外條款，允許以任意授權散布編譯後的應用程式）打包而成。</p>
+
+      <h3>免責聲明</h3>
+      <p>本程式為免費開源之公益專案，所有服務皆依賴第三方免費資源。開發者不保證服務之永久可用性，亦不對翻譯或語音辨識之準確度負責。請勿將本程式用於任何商業營利行為。上述第三方套件與工具之作者均未參與本程式開發，亦不代表其背書；相關商標與技術歸各原作者所有。</p>
+    </div>
+  </div>
+</div>
+
+<!-- 辭彙替換表 Modal -->
+<div id="glossary-modal" class="modal-overlay">
+  <div class="modal-content modal-content--wide">
+    <div class="modal-header">
+      <h2>📖 辭彙替換表</h2>
+      <button class="modal-close" id="glossary-close" title="關閉">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="glossary-hint">語音轉錄常把某些辭彙誤轉成另一個詞（例如「雲端」被轉成「云端」）。在此設定「原辭彙 → 替換成辭彙」，interim 即時文字與落地文字都會在顯示／落地前先自動替換。資料只存在本機瀏覽器（localStorage）。</p>
+      <div class="glossary-table-wrap">
+        <table class="glossary-table">
+          <thead>
+            <tr>
+              <th style="width: 45%;">原辭彙（誤轉結果）</th>
+              <th style="width: 45%;">替換成辭彙</th>
+              <th style="width: 10%; text-align: center;">操作</th>
+            </tr>
+          </thead>
+          <tbody id="glossary-table-body"></tbody>
+        </table>
+      </div>
+      <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+        <button class="btn" id="glossary-add-btn" title="新增一列辭彙規則">+ 新增辭彙列</button>
+      </div>
+      <div class="glossary-actions">
+        <button class="btn" id="glossary-save-btn" title="儲存到本機瀏覽器">💾 儲存</button>
+        <button class="btn" id="glossary-export-btn" title="匯出為 JSON 檔案">⬆ 匯出 JSON</button>
+        <button class="btn" id="glossary-import-btn" title="從 JSON 或 TXT 檔案匯入（原詞=>正詞 逐行）">⬇ 匯入</button>
+        <input type="file" id="glossary-file-input" accept=".json,.txt" hidden>
+      </div>
+      <div class="glossary-status" id="glossary-status" role="status"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 設定面板遮罩 -->
+<div id="settings-overlay"></div>
+
+<!-- 設定面板 Settings Panel -->
+<aside id="settings-panel" aria-label="顯示設定">
+  <div class="settings-header">
+    <span>顯示設定</span>
+    <button id="settings-close">✕</button>
+  </div>
+  <div class="settings-body">
+
+    <div class="setting-row">
+      <label>音源名稱</label>
+      <div id="audio-alias-list" class="audio-alias-list">
+        <div style="font-size:13px;color:var(--fg-secondary);">讀取音源中...</div>
+      </div>
+      <div class="audio-alias-actions">
+        <button class="btn" id="audio-alias-refresh" type="button">重新整理音源</button>
+        <button class="btn" id="audio-alias-save" type="button">儲存音源名稱</button>
+      </div>
+    </div>
+
+    <div class="settings-columns">
+      <div class="settings-column">
+        <div class="setting-row">
+          <label>視覺主題</label>
+          <select id="set-theme" class="toolbar-select" style="width: 100%; height: 36px; padding: 0 10px;">
+            <option value="default">☀️ 白天 (預設)</option>
+            <option value="system">🌗 跟隨系統</option>
+            <option value="night">🌙 夜晚</option>
+            <option value="ocean">🌊 深海 (Ocean)</option>
+            <option value="parchment">📜 羊皮 (Parchment)</option>
+            <option value="forest">🌿 森林 (Forest)</option>
+            <option value="wa">🍵 禪風 (Wa)</option>
+            <option value="custom">⚙️ 自訂顏色</option>
+          </select>
+        </div>
+
+        <div class="setting-row">
+          <label>背景顏色</label>
+          <div class="control-row">
+            <div class="color-preview" id="bg-preview" title="點擊選色"></div>
+            <input type="color" id="set-bg" value="#ffffff">
+            <span style="font-size:13px;color:#888;">點擊色塊選色</span>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <label>字體顏色</label>
+          <div class="control-row">
+            <div class="color-preview" id="fg-preview" title="點擊選色"></div>
+            <input type="color" id="set-fg" value="#1a1a1a">
+            <span style="font-size:13px;color:#888;">點擊色塊選色</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-column">
+        <div class="setting-row">
+          <label>字體</label>
+          <select id="set-font">
+            <option value="'DFKai-SB', 'BiauKai', serif">標楷體</option>
+            <option value="'Microsoft JhengHei', 'PingFang TC', 'Noto Sans TC', sans-serif">微軟正黑體 / 思源黑體</option>
+            <option value="'PMingLiU', 'MingLiU', serif">新細明體</option>
+            <option value="system-ui, -apple-system, sans-serif">系統預設無襯線體</option>
+            <option value="'Consolas', 'Courier New', monospace">等寬字型 (Monospace)</option>
+          </select>
+        </div>
+
+        <div class="setting-row">
+          <label>字體大小</label>
+          <div class="slider-row">
+            <input type="range" id="set-size" min="16" max="72" step="1" value="32">
+            <output id="set-size-out">32px</output>
+          </div>
+        </div>
+
+        <div class="setting-row">
+          <label>行高間距</label>
+          <div class="slider-row">
+            <input type="range" id="set-line-height" min="1.0" max="2.0" step="0.1" value="1.2">
+            <output id="set-line-height-out">1.2</output>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</aside>
+
+<!-- 狀態列 -->
+<div id="status-bar">
+  <div class="left-stats">
+    <span class="stat" id="stat-words">📝 0 字</span>
+    <span class="stat" id="stat-audio"></span>
+    <span class="stat" id="stat-reconnect" style="display:none"></span>
+  </div>
+  <div class="center-stats">
+    <button id="license-btn" title="查看第三方授權與免責聲明">⚖️ 第三方授權聲明</button>
+  </div>
+  <div class="right-stats">
+    <label for="set-force-scroll" style="display: flex; align-items: center; gap: 4px; cursor: pointer; font-size: 12px; color: var(--fg-secondary); margin: 0;">
+      <input type="checkbox" id="set-force-scroll" style="cursor: pointer; margin: 0;">
+      強制置底
+    </label>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+'use strict';
+
+// ─────────────────────────────────────────────
+// SettingsManager (設定管理員)
+// ─────────────────────────────────────────────
+const SettingsManager = (() => {
+  const STORAGE_KEY = 'edgesrt_settings';
+  const DEFAULTS = {
+    theme: 'default',
+    bgColor: '#ffffff',
+    fgColor: '#1a1d23',
+    fontFamily: "'DFKai-SB', 'BiauKai', serif",
+    fontSize: 32,
+    lineHeight: 1.2,
+    nightMode: false,
+    forceScroll: false
+  };
+
+  let current = { ...DEFAULTS };
+
+  function systemPrefersDark() {
+    return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  }
+
+  function applyAll(s) {
+    const root = document.documentElement;
+    root.style.setProperty('--transcript-font', s.fontFamily);
+    root.style.setProperty('--transcript-size', s.fontSize + 'px');
+    root.style.setProperty('--transcript-line-height', s.lineHeight);
+    // 同步顏色預覽區塊
+    document.getElementById('bg-preview').style.background = s.bgColor;
+    document.getElementById('fg-preview').style.background = s.fgColor;
+    
+    const bgRow = document.getElementById('bg-preview').closest('.setting-row');
+    const fgRow = document.getElementById('fg-preview').closest('.setting-row');
+
+    const isCustom = s.theme === 'custom';
+    // 具名主題（深海／羊皮／森林／禪風…）用 data-theme 屬性套用自己的一整組配色，
+    // 不受 night-theme class 或 --transcript-bg/fg 覆寫影響
+    const isNamedTheme = !['custom', 'system', 'night', 'default'].includes(s.theme);
+    const isDark = s.theme === 'night' ? true
+      : s.theme === 'system' ? systemPrefersDark()
+      : isNamedTheme ? false
+      : !!s.nightMode; // 'custom' 與 'default' 都跟著使用者手動切換的 nightMode
+
+    if (isNamedTheme) root.setAttribute('data-theme', s.theme);
+    else root.removeAttribute('data-theme');
+    root.classList.toggle('night-theme', isDark);
+
+    if (isCustom) {
+      root.style.setProperty('--transcript-bg', s.bgColor);
+      root.style.setProperty('--transcript-fg', s.fgColor);
+    } else {
+      root.style.removeProperty('--transcript-bg');
+      root.style.removeProperty('--transcript-fg');
+    }
+
+    const rowOpacity = isCustom ? '1' : '0.5';
+    if (bgRow) bgRow.style.opacity = rowOpacity;
+    if (fgRow) fgRow.style.opacity = rowOpacity;
+  }
+
+  function save(partial) {
+    current = { ...current, ...partial };
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(current)); } catch(e) {}
+    applyAll(current);
+  }
+
+  function init() {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) current = { ...DEFAULTS, ...JSON.parse(stored) };
+    } catch(e) {}
+
+    applyAll(current);
+
+    // 設定輸入控制項初始值
+    if (document.getElementById('set-theme')) {
+      document.getElementById('set-theme').value = current.theme || 'default';
+    }
+    document.getElementById('set-bg').value = current.bgColor;
+    document.getElementById('set-fg').value = current.fgColor;
+
+    const fontSel = document.getElementById('set-font');
+    // 尋找對應的選單選項
+    for (let opt of fontSel.options) {
+      if (opt.value === current.fontFamily) { opt.selected = true; break; }
+    }
+
+    const sizeSlider = document.getElementById('set-size');
+    sizeSlider.value = current.fontSize;
+    document.getElementById('set-size-out').value = current.fontSize + 'px';
+
+    const lineHeightSlider = document.getElementById('set-line-height');
+    lineHeightSlider.value = current.lineHeight;
+    document.getElementById('set-line-height-out').value = current.lineHeight;
+
+    const forceScrollCheck = document.getElementById('set-force-scroll');
+    if (forceScrollCheck) {
+      forceScrollCheck.checked = !!current.forceScroll;
+    }
+
+    // 綁定控制項事件
+    document.getElementById('set-theme').addEventListener('change', e => {
+      const theme = e.target.value;
+      save({ theme, nightMode: theme === 'night' });
+    });
+
+    if (window.matchMedia) {
+      const media = window.matchMedia('(prefers-color-scheme: dark)');
+      const onSystemThemeChange = () => {
+        if (current.theme === 'system') applyAll(current);
+      };
+      if (media.addEventListener) media.addEventListener('change', onSystemThemeChange);
+      else if (media.addListener) media.addListener(onSystemThemeChange);
+    }
+    
+    // 點選預覽塊時觸發隱藏的 <input type="color">
+    document.getElementById('bg-preview').addEventListener('click', () => {
+      document.getElementById('set-bg').click();
+    });
+    document.getElementById('fg-preview').addEventListener('click', () => {
+      document.getElementById('set-fg').click();
+    });
+
+    document.getElementById('set-bg').addEventListener('input', e => {
+      save({ theme: 'custom', bgColor: e.target.value });
+      document.getElementById('set-theme').value = 'custom';
+    });
+    document.getElementById('set-fg').addEventListener('input', e => {
+      save({ theme: 'custom', fgColor: e.target.value });
+      document.getElementById('set-theme').value = 'custom';
+    });
+    document.getElementById('set-font').addEventListener('change', e => {
+      save({ fontFamily: e.target.value });
+    });
+    document.getElementById('set-size').addEventListener('input', e => {
+      const v = parseInt(e.target.value, 10);
+      document.getElementById('set-size-out').value = v + 'px';
+      save({ fontSize: v });
+    });
+    document.getElementById('set-line-height').addEventListener('input', e => {
+      const v = parseFloat(e.target.value);
+      document.getElementById('set-line-height-out').value = v.toFixed(2);
+      save({ lineHeight: v });
+    });
+    const forceScrollCheckEvt = document.getElementById('set-force-scroll');
+    if (forceScrollCheckEvt) {
+      forceScrollCheckEvt.addEventListener('change', e => {
+        save({ forceScroll: e.target.checked });
+        if (e.target.checked) TextArea.scrollToBottom();
+      });
+    }
+  }
+
+  function getCurrent() { return current; }
+  return { init, save, getCurrent };
+})();
+
+
+// ─────────────────────────────────────────────
+// GlossaryManager (辭彙替換表 — 語音誤轉辭彙自動替換)
+// ─────────────────────────────────────────────
+// 語音轉錄常把某些辭彙誤轉成另一個詞（例如「雲端」轉成「云端」）。
+// 在此設定「原辭彙 → 替換成辭彙」的對照表，interim 即時文字與落地文字
+// 都會在顯示／落地前先套用替換。資料只存在本機瀏覽器 (localStorage)。
+const GlossaryManager = (() => {
+  const STORAGE_KEY = 'edgesrt_glossary';
+  const DEFAULT_GLOSSARY = {
+    '云端': '雲端',
+    '隻有': '只有',
+    'Germany': 'Gemini'
+  };
+
+  let glossary = {}; // { 原辭彙: 替換成辭彙 }
+
+  function escapeRegExp(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  // 含中日韓字元的辭彙用「直接字串替換」：中文沒有空格分隔，詞界正則在句中會失效；
+  // 純拉丁/英文辭彙改用「非字母數字前後包夾」的類詞界比對，避免誤替換到較長單字的中間片段。
+  function containsCJK(str) {
+    return /[\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]/.test(str);
+  }
+
+  let compiledRules = []; // \u4f9d glossary \u5efa\u7acb\u4e00\u6b21\u7684\u5feb\u53d6\uff1bsubstitute() \u662f\u9010\u5b57\u8f49\u9304\u7684\u71b1\u8def\u5f91\uff0c\u4e0d\u80fd\u6bcf\u6b21\u90fd\u91cd\u6392\u5e8f/\u91cd\u7de8\u8b6f RegExp
+
+  // \u4f9d\u5b57\u6578\u7531\u9577\u5230\u77ed\u6392\u5e8f\uff0c\u907f\u514d\u77ed\u898f\u5247\u5148\u66ff\u63db\u800c\u7834\u58de\u9577\u898f\u5247\uff1b\u53ea\u5728 glossary \u5167\u5bb9\u8b8a\u52d5\uff08load/save\uff09\u6642\u547c\u53eb
+  function _rebuildRules() {
+    compiledRules = Object.entries(glossary)
+      .filter(([key, value]) => key && value)
+      .sort((a, b) => b[0].length - a[0].length)
+      .map(([key, value]) => containsCJK(key)
+        ? { key, value, cjk: true }
+        : { key, value, cjk: false, pattern: new RegExp(`(?<![A-Za-z0-9_])(${escapeRegExp(key)})(?![A-Za-z0-9_])`, 'g') });
+  }
+
+  function substitute(text) {
+    if (!text) return text;
+    let result = text;
+    for (const rule of compiledRules) {
+      result = rule.cjk ? result.split(rule.key).join(rule.value) : result.replace(rule.pattern, rule.value);
+    }
+    return result;
+  }
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw === null) {
+        // 第一次使用：寫入預設辭彙
+        glossary = { ...DEFAULT_GLOSSARY };
+        save();
+      } else {
+        const parsed = JSON.parse(raw);
+        glossary = (parsed && typeof parsed === 'object') ? parsed : {};
+      }
+    } catch (e) {
+      glossary = {};
+    }
+    _rebuildRules();
+  }
+
+  function save() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(glossary)); } catch (e) {}
+    _rebuildRules();
+  }
+
+  // --- 表格 UI ---
+  let tableBody = null;
+
+  function setStatus(message, type = '') {
+    const el = document.getElementById('glossary-status');
+    if (!el) return;
+    el.textContent = message;
+    el.classList.toggle('is-success', type === 'success');
+    el.classList.toggle('is-error', type === 'error');
+  }
+
+  function renderTable() {
+    if (!tableBody) return;
+    tableBody.innerHTML = '';
+    const entries = Object.entries(glossary).sort((a, b) => a[0].localeCompare(b[0], 'zh-Hant'));
+    if (entries.length === 0) {
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 3;
+      td.style.cssText = 'padding:14px; text-align:center; color:var(--fg-muted); font-size:12px;';
+      td.textContent = '尚無辭彙規則，請點擊「+ 新增辭彙列」新增';
+      tr.appendChild(td);
+      tableBody.appendChild(tr);
+    } else {
+      entries.forEach(([key, value]) => tableBody.appendChild(createRow(key, value)));
+    }
+  }
+
+  function createRow(key, value) {
+    const tr = document.createElement('tr');
+
+    const tdKey = document.createElement('td');
+    tdKey.textContent = key;
+    tdKey.style.cursor = 'text';
+    tdKey.title = '雙擊編輯原辭彙';
+
+    const tdValue = document.createElement('td');
+    tdValue.textContent = value;
+    tdValue.style.cursor = 'text';
+    tdValue.title = '雙擊編輯替換成辭彙';
+
+    const tdAction = document.createElement('td');
+    tdAction.style.textAlign = 'center';
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.textContent = '✕';
+    delBtn.title = '刪除此規則';
+    delBtn.style.cssText = 'font-size:13px; min-width:26px; padding:2px 6px; border:1px solid var(--border-medium); border-radius:4px; background:transparent; color:var(--fg-secondary); cursor:pointer;';
+    delBtn.addEventListener('click', () => {
+      delete glossary[key];
+      save();
+      renderTable();
+      setStatus(`已刪除「${key}」`, 'success');
+    });
+    tdAction.appendChild(delBtn);
+
+    tdKey.addEventListener('dblclick', () => startInlineEdit(tdKey, key, 'key'));
+    tdValue.addEventListener('dblclick', () => startInlineEdit(tdValue, key, 'value'));
+
+    tr.appendChild(tdKey);
+    tr.appendChild(tdValue);
+    tr.appendChild(tdAction);
+    return tr;
+  }
+
+  // 雙擊欄位進入行內編輯，失焦或 Enter 儲存，Esc 取消
+  function startInlineEdit(td, originalKey, field) {
+    if (td.querySelector('input')) return; // 已在編輯中
+    const currentText = td.textContent;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = currentText;
+    td.textContent = '';
+    td.appendChild(input);
+    input.focus();
+    input.select();
+
+    function commit() {
+      const newText = input.value.trim();
+      if (!newText) {
+        // 空值：還原原文
+        td.textContent = currentText;
+        return;
+      }
+      if (field === 'key') {
+        if (newText !== originalKey) {
+          const oldValue = glossary[originalKey] || '';
+          delete glossary[originalKey];
+          glossary[newText] = oldValue;
+          save();
+          renderTable();
+          setStatus(`已將原辭彙「${originalKey}」改為「${newText}」`, 'success');
+        } else {
+          td.textContent = currentText;
         }
+      } else {
+        if (newText !== currentText) {
+          glossary[originalKey] = newText;
+          save();
+          renderTable();
+          setStatus(`已更新「${originalKey}」的替換辭彙`, 'success');
+        } else {
+          td.textContent = currentText;
+        }
+      }
+    }
 
-        const port = window.location.port || '8100';
-        const wsUrl = `ws://${window.location.hostname}:${port}/ws`;
-        
-        try {
-          if (ws) {
-            ws.onclose = null;
-            ws.onerror = null;
-            ws.close();
-          }
-          ws = new WebSocket(wsUrl);
-        } catch (e) {
-          _scheduleWSReconnect();
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+      if (e.key === 'Escape') { td.textContent = currentText; }
+    });
+  }
+
+  // 新增一列（兩欄都填寫後自動寫入並儲存）
+  function addRow() {
+    if (!tableBody) return;
+    // 移除可能存在的空白提示列
+    const emptyHint = tableBody.querySelector('tr td[colspan]');
+    if (emptyHint) emptyHint.parentElement.remove();
+
+    const tr = document.createElement('tr');
+    let cancelled = false; // 取消後忽略稍後觸發的 blur 自動提交
+
+    const tdKey = document.createElement('td');
+    tdKey.style.cssText = 'padding:5px 10px;';
+    const inputKey = document.createElement('input');
+    inputKey.type = 'text';
+    inputKey.placeholder = '輸入原辭彙（誤轉結果）';
+
+    const tdValue = document.createElement('td');
+    tdValue.style.cssText = 'padding:5px 10px;';
+    const inputValue = document.createElement('input');
+    inputValue.type = 'text';
+    inputValue.placeholder = '輸入替換成辭彙';
+
+    const tdAction = document.createElement('td');
+    tdAction.style.cssText = 'text-align:center;';
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.textContent = '✕';
+    cancelBtn.title = '取消新增';
+    cancelBtn.style.cssText = 'font-size:13px; min-width:26px; padding:2px 6px; border:1px solid var(--border-medium); border-radius:4px; background:transparent; color:var(--fg-muted); cursor:pointer;';
+    cancelBtn.addEventListener('click', () => {
+      cancelled = true;
+      tr.remove();
+      if (tableBody.children.length === 0) renderTable();
+    });
+
+    function commitNewRow() {
+      if (cancelled) return;
+      const k = inputKey.value.trim();
+      const v = inputValue.value.trim();
+      if (k && v) {
+        glossary[k] = v;
+        save();
+        renderTable();
+        setStatus(`已新增辭彙「${k} → ${v}」，已自動儲存`, 'success');
+      } else if (!k && !v) {
+        // 兩欄都空白：靜默移除
+        tr.remove();
+        if (tableBody.children.length === 0) renderTable();
+      }
+      // 只填一欄：保留列讓使用者繼續填寫
+    }
+
+    inputKey.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); inputValue.focus(); }
+      if (e.key === 'Escape') { cancelled = true; tr.remove(); if (tableBody.children.length === 0) renderTable(); }
+    });
+    inputValue.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); commitNewRow(); }
+      if (e.key === 'Escape') { cancelled = true; tr.remove(); if (tableBody.children.length === 0) renderTable(); }
+    });
+    // 失焦也自動提交，避免填完直接關閉視窗而漏存
+    inputKey.addEventListener('blur', () => setTimeout(commitNewRow, 0));
+    inputValue.addEventListener('blur', () => setTimeout(commitNewRow, 0));
+
+    tdKey.appendChild(inputKey);
+    tdValue.appendChild(inputValue);
+    tdAction.appendChild(cancelBtn);
+    tr.appendChild(tdKey);
+    tr.appendChild(tdValue);
+    tr.appendChild(tdAction);
+    tableBody.appendChild(tr);
+    inputKey.focus();
+  }
+
+  // --- 匯出 / 匯入 ---
+  function exportJson() {
+    const count = Object.keys(glossary).length;
+    if (count === 0) {
+      setStatus('目前沒有任何辭彙規則可匯出', 'error');
+      return;
+    }
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const filename = `辭彙替換表_${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}.json`;
+    const blob = new Blob([JSON.stringify(glossary, null, 2)], { type: 'application/json;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    setStatus(`✅ 已匯出 ${count} 條規則至 ${filename}`, 'success');
+  }
+
+  // 相容純文字「原詞=>正詞」逐行（亦支援 -> 與 =）
+  function parseText(text) {
+    const entries = {};
+    text.split('\n').forEach(line => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+      const separator = trimmed.includes('=>') ? '=>' : (trimmed.includes('->') ? '->' : (trimmed.includes('=') ? '=' : null));
+      if (!separator) return;
+      const idx = trimmed.indexOf(separator);
+      if (idx <= 0) return;
+      const key = trimmed.slice(0, idx).trim();
+      const value = trimmed.slice(idx + separator.length).trim();
+      if (key && value) entries[key] = value;
+    });
+    return entries;
+  }
+
+  function importFile(file) {
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const raw = evt.target.result;
+        let entries = {};
+        // 相容兩種格式：JSON 物件，或純文字「原詞=>正詞」逐行
+        if (file.name.toLowerCase().endsWith('.json')) {
+          const json = JSON.parse(raw);
+          Object.entries(json).forEach(([key, value]) => {
+            if (typeof key === 'string' && typeof value === 'string' && key.trim() && value.trim()) {
+              entries[key.trim()] = value.trim();
+            }
+          });
+        } else {
+          entries = parseText(raw);
+        }
+        const count = Object.keys(entries).length;
+        if (count === 0) {
+          setStatus('檔案中沒有可用的辭彙規則', 'error');
           return;
         }
-
-        ws.onopen = () => {
-          isConnected = true;
-          retryCount = 0;
-          statusDot.className = 'dot active';
-          statusText.textContent = '語音辨識中 (WebSocket 已連線)';
-          SpeechManager.start();
-        };
-
-        ws.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            if (data.command === 'restart') {
-              SpeechManager.hardRestart();
-            } else if (data.command === 'stop') {
-              SpeechManager.stop();
-              statusDot.className = 'dot';
-              statusText.textContent = '已暫停辨識';
-            } else if (data.command === 'start') {
-              SpeechManager.start();
-              statusDot.className = 'dot active';
-              statusText.textContent = '語音辨識中';
-            } else if (data.command === 'setLang') {
-              SpeechManager.setLang(data.lang || 'zh-TW');
-            }
-          } catch (e) {
-            console.error('解析 WebSocket 訊息失敗:', e);
-          }
-        };
-
-        ws.onclose = () => {
-          isConnected = false;
-          statusDot.className = 'dot reconnecting';
-          statusText.textContent = '後台服務斷線，重試連線中...';
-          _scheduleWSReconnect();
-        };
-
-        ws.onerror = () => {
-          if (ws) {
-            try { ws.close(); } catch (e) {}
-          }
-        };
+        glossary = entries; // 整表覆蓋
+        save();
+        renderTable();
+        setStatus(`✅ 已匯入 ${count} 條辭彙規則（整表覆蓋）`, 'success');
+      } catch (err) {
+        setStatus('辭彙表檔案格式錯誤：' + err, 'error');
       }
+    };
+    reader.readAsText(file);
+  }
 
-      function _scheduleWSReconnect() {
-        if (reconnectTimer) clearTimeout(reconnectTimer);
-        retryCount++;
-        const delay = Math.min(1500 * Math.pow(1.3, retryCount - 1), 10000);
-        reconnectTimer = setTimeout(connect, delay);
-      }
+  function init() {
+    load();
+    tableBody = document.getElementById('glossary-table-body');
+    renderTable();
 
-      function send(obj) {
-        if (ws && isConnected && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify(obj));
-        }
-      }
-
-      return { connect, send };
-    })();
-
-    // ─────────────────────────────────────────────
-    // 音量偵測與卡死預警 (AudioDetector)
-    // ─────────────────────────────────────────────
-    const AudioDetector = (() => {
-      let audioContext = null;
-      let analyser = null;
-      let dataArray = null;
-      let micStream = null;
-      let currentVolume = 0;
-      let loopTimer = null;
-      const meterFill = document.getElementById('audio-meter');
-
-      async function init() {
-        try {
-          if (micStream) return;
-          micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-          const track = micStream.getAudioTracks()[0];
-          if (track) {
-            WSClient.send({ event: 'speech_status', status: `audio:${track.label || 'unknown input'}` });
-          }
-          const AC = window.AudioContext || window.webkitAudioContext;
-          audioContext = new AC();
-          analyser = audioContext.createAnalyser();
-          analyser.fftSize = 256;
-          const source = audioContext.createMediaStreamSource(micStream);
-          source.connect(analyser);
-          dataArray = new Uint8Array(analyser.frequencyBinCount);
-          // 用 setInterval 而非 requestAnimationFrame 驅動：rAF 綁定畫面重繪，
-          // 視窗被 SW_HIDE 隱藏後會被瀏覽器降頻/暫停，導致音量條與 ASR 卡死
-          // 偵測（isAudioDetected）一起失靈。setInterval 不受可見性節流影響。
-          if (loopTimer) clearInterval(loopTimer);
-          loopTimer = setInterval(_loop, 50);
-        } catch (e) {
-          console.warn('音量偵測初始化失敗:', e);
-        }
-      }
-
-      let lastVolSend = 0;
-      function _loop() {
-        if (!analyser) return;
-        analyser.getByteFrequencyData(dataArray);
-        let sum = 0;
-        for (let i = 0; i < dataArray.length; i++) sum += dataArray[i];
-        currentVolume = sum / dataArray.length;
-        if (meterFill) {
-          const pct = Math.min(100, Math.round(currentVolume * 2.5));
-          meterFill.style.width = pct + '%';
-        }
-        const now = Date.now();
-        if (now - lastVolSend > 70) {
-          lastVolSend = now;
-          WSClient.send({ event: 'volume', volume: Math.round(currentVolume) });
-        }
-      }
-
-      function isAudioDetected() {
-        return currentVolume > 2.0;
-      }
-
-      function destroy() {
-        if (loopTimer) {
-          clearInterval(loopTimer);
-          loopTimer = null;
-        }
-        if (micStream) {
-          micStream.getTracks().forEach(t => t.stop());
-          micStream = null;
-        }
-        if (audioContext) {
-          audioContext.close().catch(() => {});
-          audioContext = null;
-        }
-        analyser = null;
-      }
-
-      return { init, isAudioDetected, destroy };
-    })();
-
-    // ─────────────────────────────────────────────
-    // SpeechManager (語音辨識管理員)
-    // ─────────────────────────────────────────────
-    const SpeechManager = (() => {
-      let recognition = null;
-      let isActive = false;
-      let reconnectCount = 0;
-      let lastResultTime = 0;
-      let heartbeatTimer = null;
-      let currentLang = 'zh-TW';
-
-      const finalTextEl = document.getElementById('final-text');
-      const interimTextEl = document.getElementById('interim-text');
-
-      function setLang(lang) {
-        currentLang = lang;
-        if (isActive) hardRestart();
-      }
-
-      function _createRecognition() {
-        const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SpeechRec) {
-          WSClient.send({ event: 'error', error: '此瀏覽器不支援 Web Speech API' });
-          return null;
-        }
-        const r = new SpeechRec();
-        r.continuous = true;
-        r.interimResults = true;
-        r.maxAlternatives = 1;
-        r.lang = currentLang;
-        r.onstart = () => {
-          statusDot.className = 'dot active';
-          statusText.textContent = `SpeechRecognition started (${currentLang})`;
-          WSClient.send({ event: 'speech_status', status: `started:${currentLang}` });
-        };
-
-        r.onaudiostart = () => {
-          WSClient.send({ event: 'speech_status', status: 'audiostart' });
-        };
-
-        r.onsoundstart = () => {
-          WSClient.send({ event: 'speech_status', status: 'soundstart' });
-        };
-
-        r.onspeechstart = () => {
-          WSClient.send({ event: 'speech_status', status: 'speechstart' });
-        };
-
-        r.onspeechend = () => {
-          WSClient.send({ event: 'speech_status', status: 'speechend' });
-        };
-
-        r.onaudioend = () => {
-          WSClient.send({ event: 'speech_status', status: 'audioend' });
-        };
-
-        r.onresult = (event) => {
-          let interim = '';
-          let final = '';
-          for (let i = event.resultIndex; i < event.results.length; i++) {
-            const result = event.results[i];
-            const t = result[0].transcript;
-            if (result.isFinal) {
-              final += t;
-            } else {
-              interim += t;
-            }
-          }
-
-          if (final) {
-            finalTextEl.textContent = (finalTextEl.textContent + ' ' + final).slice(-100);
-            WSClient.send({ event: 'final', text: final, timestamp: Date.now() });
-          }
-          if (interim) {
-            interimTextEl.textContent = interim;
-            WSClient.send({ event: 'interim', text: interim, timestamp: Date.now() });
-          } else {
-            interimTextEl.textContent = '';
-            WSClient.send({ event: 'interim', text: '', timestamp: Date.now() });
-          }
-
-          lastResultTime = Date.now();
-          reconnectCount = 0;
-        };
-
-        r.onerror = (event) => {
-          const err = event.error;
-          statusText.textContent = `SpeechRecognition error: ${err}`;
-          WSClient.send({ event: 'error', error: err });
-          console.warn('語音辨識事件:', err);
-          // 'no-speech', 'aborted', 'network' 為正常生命週期與自動重連事件，非致命異常
-          if (err === 'no-speech' || err === 'aborted' || err === 'network') {
-            return;
-          }
-          if (err === 'not-allowed') {
-            WSClient.send({ event: 'error', error: '麥克風權限被拒絕，請確認權限設定' });
-            stop();
-          } else if (err === 'audio-capture') {
-            WSClient.send({ event: 'error', error: '未偵測到音訊輸入裝置' });
-            stop();
-          } else {
-            WSClient.send({ event: 'error', error: err });
-          }
-        };
-
-        r.onend = () => {
-          WSClient.send({ event: 'speech_status', status: 'end' });
-          if (!isActive) return;
-          _scheduleReconnect();
-        };
-
-        return r;
-      }
-
-      function _scheduleReconnect() {
-        if (!isActive) return;
-        reconnectCount++;
-        const delay = reconnectCount <= 2 ? 60 : Math.min(reconnectCount * 150, 1000);
-        setTimeout(() => {
-          if (!isActive) return;
-          recognition = _createRecognition();
-          try {
-            lastResultTime = Date.now();
-            if (recognition) recognition.start();
-          } catch (e) {
-            _scheduleReconnect();
-          }
-        }, delay);
-      }
-
-      function _startHeartbeat() {
-        _stopHeartbeat();
-        heartbeatTimer = setInterval(() => {
-          if (!isActive) return;
-          // 有音量但超過 10 秒沒有吐出文字：判定為 ASR 僵死，自動重啟
-          if (AudioDetector.isAudioDetected() && lastResultTime > 0 && Date.now() - lastResultTime > 10000) {
-            console.log('偵測到語音辨識僵死，執行自動恢復...');
-            hardRestart();
-          }
-        }, 4000);
-      }
-
-      function _stopHeartbeat() {
-        if (heartbeatTimer) {
-          clearInterval(heartbeatTimer);
-          heartbeatTimer = null;
-        }
-      }
-
-      let isRestarting = false;
-      function hardRestart() {
-        if (isRestarting) return;
-        isRestarting = true;
-        _stopHeartbeat();
-        if (recognition) {
-          try {
-            recognition.onend = null;
-            recognition.onerror = null;
-            recognition.onresult = null;
-            recognition.stop();
-          } catch (e) {}
-          recognition = null;
-        }
-        AudioDetector.destroy();
-        reconnectCount = 0;
-        lastResultTime = Date.now();
-        setTimeout(() => {
-          if (!isActive) {
-            isRestarting = false;
-            return;
-          }
-          recognition = _createRecognition();
-          try {
-            if (recognition) {
-              recognition.start();
-              _startHeartbeat();
-              setTimeout(() => AudioDetector.init(), 250);
-            }
-          } catch (e) {
-            _scheduleReconnect();
-          } finally {
-            isRestarting = false;
-          }
-        }, 200);
-      }
-
-      async function start() {
-        if (isActive) return;
-        isActive = true;
-        reconnectCount = 0;
-        lastResultTime = Date.now();
-        recognition = _createRecognition();
-        if (recognition) {
-          try {
-            recognition.start();
-            _startHeartbeat();
-            setTimeout(() => AudioDetector.init(), 250);
-          } catch (e) {
-            _scheduleReconnect();
-          }
-        }
-      }
-
-      function stop() {
-        isActive = false;
-        _stopHeartbeat();
-        AudioDetector.destroy();
-        if (recognition) {
-          try { recognition.stop(); } catch (e) {}
-          recognition = null;
-        }
-      }
-
-      return { start, stop, hardRestart, setLang };
-    })();
-
-    // 頁面載入後自動連線 WebSocket
-    window.addEventListener('DOMContentLoaded', () => {
-      WSClient.connect();
+    // 開啟 / 關閉視窗
+    const modal = document.getElementById('glossary-modal');
+    const openModal = () => { renderTable(); modal.classList.add('visible'); };
+    const closeModal = () => modal.classList.remove('visible');
+    document.getElementById('glossary-btn').addEventListener('click', openModal);
+    document.getElementById('glossary-close').addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
     });
-  </script>
+
+    document.getElementById('glossary-add-btn').addEventListener('click', addRow);
+    document.getElementById('glossary-save-btn').addEventListener('click', () => {
+      // 先讓聚焦欄位失焦，觸發新增列/行內編輯的提交，再統一儲存
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      setTimeout(() => {
+        save();
+        renderTable();
+        setStatus('💾 辭彙替換表已儲存（存在本機瀏覽器）', 'success');
+      }, 10);
+    });
+    document.getElementById('glossary-export-btn').addEventListener('click', exportJson);
+    document.getElementById('glossary-import-btn').addEventListener('click', () => document.getElementById('glossary-file-input').click());
+    document.getElementById('glossary-file-input').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      importFile(file);
+      e.target.value = '';
+    });
+  }
+
+  return { init, substitute };
+})();
+
+
+// ─────────────────────────────────────────────
+// TextArea (文字顯示區管理員)
+// ─────────────────────────────────────────────
+const TextArea = (() => {
+  const el = document.getElementById('transcript');
+  // 段落合併：每累積 CONSOLIDATE_EVERY 段就把舊段落合併，防止長時間錄音 DOM 無限膨脹
+  const CONSOLIDATE_EVERY = 20;
+  let sinceConsolidate = 0;
+  let autoScrollEnabled = true;
+  let interimSpan = null;
+  let interimPara = null;
+
+  function normalizeForCompare(text) {
+    return (text || '').replace(/[\s，。！？、,.!?;；：「」『』（）()《》〈〉【】\[\]"'`~\-—…]+/g, '');
+  }
+
+  function stripEdgePunctuation(text) {
+    return (text || '').replace(/^[\s，。！？、,.!?;；：:]+/g, '').replace(/[\s，。！？、,.!?;；：:]+$/g, '');
+  }
+
+  function getFinalText() {
+    return Array.from(el.children)
+      .filter(p => p.tagName === 'P' && p !== interimPara && p.className === '' && p.textContent.trim() !== '')
+      .map(p => p.textContent.trim());
+  }
+
+  function normalizedIndexMap(text) {
+    const normalized = [];
+    const sourceIndexes = [];
+    Array.from(text || '').forEach((char, index) => {
+      if (normalizeForCompare(char)) {
+        normalized.push(char);
+        sourceIndexes.push(index);
+      }
+    });
+    return { normalized: normalized.join(''), sourceIndexes };
+  }
+
+  function stripRecentOverlap(text) {
+    const finals = getFinalText();
+    if (!finals.length) return text;
+
+    const recentNorm = normalizeForCompare(finals.slice(-3).join('\n'));
+    const mapped = normalizedIndexMap(text);
+    const incomingNorm = mapped.normalized;
+    const sourceIndexes = mapped.sourceIndexes;
+    if (!recentNorm || !incomingNorm) return text;
+    if (recentNorm.includes(incomingNorm)) return '';
+
+    const minOverlap = 8;
+    const maxLen = Math.min(recentNorm.length, incomingNorm.length);
+    const boundaryChars = ' \t\r\n，。！？、,.!?;；：「」『』（）()《》〈〉【】[]"\'`~-/—…';
+
+    for (let size = maxLen; size >= minOverlap; size--) {
+      if (recentNorm.endsWith(incomingNorm.slice(0, size))) {
+        const cut = sourceIndexes[size - 1] + 1;
+        return stripEdgePunctuation(text.slice(cut));
+      }
+    }
+
+    for (let size = maxLen; size >= minOverlap; size--) {
+      for (let start = 1; start <= incomingNorm.length - size; start++) {
+        if (!recentNorm.includes(incomingNorm.slice(start, start + size))) continue;
+        const startPos = sourceIndexes[start];
+        if (startPos > 0 && !boundaryChars.includes(text[startPos - 1])) continue;
+        const before = text.slice(0, startPos).trim();
+        const afterPos = sourceIndexes[start + size - 1] + 1;
+        let after = text.slice(afterPos).trim();
+        if (!normalizeForCompare(after)) after = '';
+        return stripEdgePunctuation(`${before}${before && after ? ' ' : ''}${after}`);
+      }
+    }
+
+    return text;
+  }
+
+  function _ensureInterimPara() {
+    if (!interimPara || !el.contains(interimPara)) {
+      interimPara = document.createElement('p');
+      interimSpan = document.createElement('span');
+      interimSpan.className = 'interim';
+      interimPara.appendChild(interimSpan);
+      el.appendChild(interimPara);
+    }
+    if (!interimSpan || !interimPara.contains(interimSpan)) {
+      interimSpan = document.createElement('span');
+      interimSpan.className = 'interim';
+      interimPara.appendChild(interimSpan);
+    }
+  }
+
+  // 將舊的 final 段落合併進第一個段落，減少 DOM 節點數
+  function maybeConsolidate() {
+    // 只在錄音中合併，避免打擾使用者手動編輯
+    if (!SpeechManager.getIsActive()) return;
+    sinceConsolidate++;
+    if (sinceConsolidate < CONSOLIDATE_EVERY) return;
+    sinceConsolidate = 0;
+
+    const paras = Array.from(el.children);
+    // 只合併我們自己建立的 <p> (沒有 class，且不是 interimPara)
+    const finals = paras.filter(p => p.tagName === 'P' && p !== interimPara && p.className === '' && p.textContent.trim() !== '');
+    if (finals.length < 3) return;
+    const first = finals[0];
+    let mergedText = first.textContent;
+    
+    for (let i = 1; i < finals.length; i++) {
+      const pText = finals[i].textContent;
+      if (pText) {
+        mergedText += (mergedText ? '\n' : '') + pText;
+      }
+      el.removeChild(finals[i]);
+    }
+    first.textContent = mergedText;
+  }
+
+  function appendFinal(text) {
+    text = stripRecentOverlap((text || '').trim());
+    if (!text) return;
+
+    const finals = getFinalText();
+    const lastFinal = finals[finals.length - 1] || '';
+    if (normalizeForCompare(text) === normalizeForCompare(lastFinal)) return;
+
+    // 暫時移除即時辨識段落
+    if (interimPara && el.contains(interimPara)) {
+      el.removeChild(interimPara);
+    }
+    interimPara = null;
+    interimSpan = null;
+
+    // 將最終辨識文字作為新段落追加
+    const p = document.createElement('p');
+    p.textContent = text;
+    el.appendChild(p);
+
+    // 防止長時間錄音 DOM 無限膨脹：每 N 段合併一次
+    maybeConsolidate();
+
+    // 在末尾重新建立即時辨識段落
+    _ensureInterimPara();
+
+    // 自動保存草稿
+    Draft.schedule();
+
+    if (autoScrollEnabled || SettingsManager.getCurrent().forceScroll) scrollToBottom();
+  }
+
+  function reset() {
+    el.innerHTML = '';
+    interimPara = null;
+    interimSpan = null;
+    sinceConsolidate = 0;
+    autoScrollEnabled = true;
+    document.getElementById('jump-btn').style.display = 'none';
+  }
+
+  function updateInterim(text) {
+    _ensureInterimPara();
+    interimSpan.textContent = text;
+    if (autoScrollEnabled || SettingsManager.getCurrent().forceScroll) scrollToBottom();
+  }
+
+  function commitInterim() {
+    if (interimSpan && interimSpan.textContent.trim()) {
+      const text = interimSpan.textContent;
+      interimSpan.textContent = '';
+      appendFinal(text);
+    }
+    clearInterim();
+  }
+
+  function clearInterim() {
+    if (interimSpan) interimSpan.textContent = '';
+    if (interimPara && el.contains(interimPara) && interimPara.textContent.trim() === '') {
+      el.removeChild(interimPara);
+    }
+    interimPara = null;
+    interimSpan = null;
+  }
+
+  function setEditable(bool) {
+    el.contentEditable = bool ? 'true' : 'false';
+    if (bool) {
+      el.classList.remove('recording-glow');
+    } else {
+      el.classList.add('recording-glow');
+    }
+  }
+
+  function scrollToBottom() {
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function enableAutoScroll() {
+    autoScrollEnabled = true;
+    scrollToBottom();
+    document.getElementById('jump-btn').style.display = 'none';
+  }
+
+  function _onScroll() {
+    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 8;
+    if (atBottom) {
+      autoScrollEnabled = true;
+      document.getElementById('jump-btn').style.display = 'none';
+    } else {
+      if (autoScrollEnabled) {
+        autoScrollEnabled = false;
+        document.getElementById('jump-btn').style.display = 'flex';
+        document.getElementById('jump-btn').style.alignItems = 'center';
+        document.getElementById('jump-btn').style.justifyContent = 'center';
+      }
+    }
+  }
+
+  function init() {
+    el.addEventListener('scroll', _onScroll, { passive: true });
+    document.getElementById('jump-btn').addEventListener('click', enableAutoScroll);
+  }
+
+  return { init, appendFinal, updateInterim, commitInterim, clearInterim, setEditable, scrollToBottom, enableAutoScroll, reset };
+})();
+
+
+// ─────────────────────────────────────────────
+// WakeLockManager (螢幕喚醒鎖管理員)
+// ─────────────────────────────────────────────
+const WakeLockManager = (() => {
+  let wakeLock = null;
+
+  async function request() {
+    if ('wakeLock' in navigator) {
+      try {
+        wakeLock = await navigator.wakeLock.request('screen');
+      } catch (err) {
+        // Ignore errors if wake lock is denied
+      }
+    }
+  }
+
+  function release() {
+    if (wakeLock !== null) {
+      wakeLock.release().catch(() => {});
+      wakeLock = null;
+    }
+  }
+
+  return { request, release };
+})();
+
+const RuntimeEnv = (() => {
+  function getRealUA() {
+    return window.__EDGE_SRT_REAL_UA || navigator.userAgent || '';
+  }
+
+  function getRealPlatform() {
+    return window.__EDGE_SRT_REAL_PLATFORM || navigator.platform || '';
+  }
+
+  function getRealTouchPoints() {
+    return Number(window.__EDGE_SRT_REAL_TOUCH_POINTS || navigator.maxTouchPoints || 0);
+  }
+
+  function isIOS() {
+    const ua = getRealUA();
+    return /iPad|iPhone|iPod/.test(ua) || (getRealPlatform() === 'MacIntel' && getRealTouchPoints() > 1);
+  }
+
+  function isAndroid() {
+    return /Android/i.test(getRealUA());
+  }
+
+  function isMobile() {
+    return isIOS() || isAndroid();
+  }
+
+  function isEdge() {
+    return /\bEdg\//.test(getRealUA());
+  }
+
+  function isChrome() {
+    const ua = getRealUA();
+    return /\bChrome\//.test(ua) && !isEdge() && !/\bOPR\//.test(ua) && !/\bSamsungBrowser\//.test(ua);
+  }
+
+  function isDesktopChrome() {
+    return isChrome() && !isMobile();
+  }
+
+  return { isIOS, isAndroid, isMobile, isEdge, isChrome, isDesktopChrome };
+})();
+
+// 手機瀏覽器的麥克風收音品質看不到、調不到，此模組在手機上顯示即時音量／
+// 削峰狀態，讓使用者知道要不要靠近麥克風或講大聲一點。注意：Web Speech API
+// 沒有提供「餵自訂音軌給辨識引擎」的機制，所以這裡量到的音量無法真的拿去
+// 加強辨識用的收音——這純粹是一個給使用者看的品質指示燈。
+const AudioLevelMonitor = (() => {
+  let stream = null;
+  let audioContext = null;
+  let analyser = null;
+  let source = null;
+  let data = null;
+  let rafId = 0;
+
+  function _setStatus(text, level = '') {
+    const el = document.getElementById('stat-audio');
+    if (!el) return;
+    el.textContent = text;
+    el.classList.remove('good', 'warn', 'bad');
+    if (level) el.classList.add(level);
+  }
+
+  function _constraints() {
+    return {
+      audio: {
+        echoCancellation: { ideal: false },
+        noiseSuppression: { ideal: false },
+        autoGainControl: { ideal: true },
+        channelCount: { ideal: 1 },
+        sampleRate: { ideal: 48000 }
+      }
+    };
+  }
+
+  function _tick() {
+    if (!analyser || !data) return;
+    analyser.getByteTimeDomainData(data);
+    let sum = 0;
+    let peak = 0;
+    for (let i = 0; i < data.length; i++) {
+      const v = (data[i] - 128) / 128;
+      sum += v * v;
+      const abs = Math.abs(v);
+      if (abs > peak) peak = abs;
+    }
+    const rms = Math.sqrt(sum / data.length);
+    const db = rms > 0 ? 20 * Math.log10(rms) : -100;
+    const dbText = Math.max(-60, Math.round(db));
+    if (peak > 0.92) {
+      _setStatus(`Mic: clipping ${dbText} dB`, 'bad');
+    } else if (db < -42) {
+      _setStatus(`Mic: too far ${dbText} dB`, 'bad');
+    } else if (db < -32) {
+      _setStatus(`Mic: low ${dbText} dB`, 'warn');
+    } else {
+      _setStatus(`Mic: good ${dbText} dB`, 'good');
+    }
+    rafId = requestAnimationFrame(_tick);
+  }
+
+  async function start() {
+    stop();
+    if (!RuntimeEnv.isMobile()) {
+      _setStatus('Mic: Edge direct', 'good');
+      return;
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      _setStatus('Mic: no meter', 'warn');
+      return;
+    }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia(_constraints());
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) {
+        _setStatus('Mic: no meter', 'warn');
+        return;
+      }
+      audioContext = new AC();
+      analyser = audioContext.createAnalyser();
+      analyser.fftSize = 2048;
+      source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+      data = new Uint8Array(analyser.fftSize);
+      _tick();
+    } catch (err) {
+      _setStatus('Mic: meter off', 'warn');
+    }
+  }
+
+  function stop() {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = 0;
+    if (source) {
+      try { source.disconnect(); } catch(e) {}
+      source = null;
+    }
+    if (audioContext) {
+      audioContext.close().catch(() => {});
+      audioContext = null;
+    }
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      stream = null;
+    }
+    analyser = null;
+    data = null;
+    _setStatus('');
+  }
+
+  return { start, stop };
+})();
+
+// ─────────────────────────────────────────────
+// SpeechManager (語音辨識管理員) — 永不中斷版
+// ─────────────────────────────────────────────
+// Edge 的 SpeechRecognition API 約 30 秒會自動斷開連線（無論有無講話）。
+// 本模組的策略是：移除靜音計時器，完全依賴 onend 自動重連，
+// 且重連無次數限制，讓辨識可以持續不斷運作。
+// ─────────────────────────────────────────────
+const SpeechManager = (() => {
+  let recognition = null;
+  let isActive = false;
+  let reconnectCount = 0;
+  let connected = false; // 是否正在接收辨識結果
+  let hasEnded = false;  // 是否已發生過斷線（onend）
+  let chromeRefreshTimer = null;
+  let chromeRefreshing = false;
+  const CHROME_REFRESH_MS = 25000;
+
+  // 致命錯誤：碰到就停止辨識，避免無限重連死循環
+  const FATAL_ERRORS = new Set([
+    'not-allowed', 'service-not-allowed', 'audio-capture',
+    'language-not-supported', 'bad-grammar'
+  ]);
+
+  function _getLang() {
+    return document.getElementById('lang-select').value;
+  }
+
+  function _startRecognitionInstance(r) {
+    r.start();
+  }
+
+  function _clearChromeRefreshTimer() {
+    if (chromeRefreshTimer) {
+      clearTimeout(chromeRefreshTimer);
+      chromeRefreshTimer = null;
+    }
+  }
+
+  function _scheduleChromeRefresh() {
+    _clearChromeRefreshTimer();
+    if (!isActive || !RuntimeEnv.isDesktopChrome()) return;
+    chromeRefreshTimer = setTimeout(() => {
+      chromeRefreshTimer = null;
+      if (!isActive || !recognition || document.hidden) {
+        _scheduleChromeRefresh();
+        return;
+      }
+      chromeRefreshing = true;
+      try {
+        recognition.stop();
+      } catch (e) {
+        try { recognition.abort(); } catch (err) {}
+        _scheduleReconnect();
+      }
+    }, CHROME_REFRESH_MS);
+  }
+
+  function _scheduleReconnect() {
+    if (!isActive) return;
+    reconnectCount++;
+    
+    // 偵測是否為 iOS 裝置 (iPhone/iPad)
+    const isIOS = RuntimeEnv.isIOS();
+    
+    // 針對非 iOS (如 Windows Edge)，維持原本優秀的指數退避重連機制。
+    // 上限拉到 4000ms（而非原本的 1000ms）：麥克風長時間沒有聲音時（no-speech）
+    // 也會走到這個重連流程，1 秒上限等於長時間靜音時每秒都在重連一次，畫面上
+    // 的「重連中」次數會瘋狂跳動；拉長上限讓長時間靜音時的重連頻率降下來，
+    // 同時保留前幾次重連仍然很快（60ms）以應付一般的短暫斷線。
+    // 針對 iOS，為了減少 Apple 系統強制切斷麥克風後的「暖機時間」造成的吃字，將延遲降到最低 (10ms)
+    const delay = isIOS ? 10 : (reconnectCount <= 2 ? 60 : Math.min(reconnectCount * 150, 4000));
+    
+    // 頁籤隱藏時降低重試頻率（恢復可見後會由 visibilitychange 觸發重啟）
+    const actualDelay = document.hidden ? Math.max(delay, 5000) : delay;
+    // 重連中：讓使用者看到 UI 回饋
+    UI.setReconnecting(true, reconnectCount);
+    setTimeout(() => {
+      if (!isActive) return;
+      recognition = _createRecognition();
+      try {
+        _startRecognitionInstance(recognition);
+        _scheduleChromeRefresh();
+      } catch(e) {
+        // start 失敗時排程再次重連
+        _scheduleReconnect();
+      }
+    }, actualDelay);
+  }
+
+  function _createRecognition() {
+    const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRec) return null;
+    const r = new SpeechRec();
+    r.continuous = true;
+    r.interimResults = true;
+    r.maxAlternatives = 1;
+    r.lang = _getLang();
+
+    r.onresult = (event) => {
+      // stop() 會先把 isActive 設為 false 才呼叫 recognition.stop()；
+      // 但瀏覽器的 stop() 是非同步的，仍可能針對停止前的音訊補發一次
+      // isFinal 結果。此時 stop() 已經用 commitInterim() 把畫面上的
+      // interim 文字落地過一次，這裡若再處理就會讓句子重複，故直接忽略。
+      if (!isActive) return;
+      let interim = '';
+      let final = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const t = event.results[i][0].transcript;
+        if (event.results[i].isFinal) final += t;
+        else interim += t;
+      }
+      // 落地/顯示前先套用辭彙替換表（interim 與 final 一併處理）
+      if (final) {
+        TextArea.appendFinal(GlossaryManager.substitute(final));
+        UI.updateWordCount();
+      }
+      if (interim) TextArea.updateInterim(GlossaryManager.substitute(interim));
+      // 有收到結果就重置重連計數，並恢復正常錄音狀態
+      reconnectCount = 0;
+      connected = true;
+      hasEnded = false;
+      UI.setReconnecting(false);
+      _scheduleChromeRefresh();
+    };
+
+    r.onerror = (event) => {
+      const err = event.error;
+      if (FATAL_ERRORS.has(err)) {
+        // 致命錯誤：停止辨識並提示使用者，不再無限重連
+        stop();
+        UI.stopRecordingUI();
+        const msg = (err === 'not-allowed' || err === 'service-not-allowed')
+          ? '麥克風存取被拒絕，請在網址列允許麥克風權限'
+          : (err === 'audio-capture')
+            ? '找不到麥克風，請確認裝置已連接'
+            : (err === 'language-not-supported')
+              ? '此瀏覽器不支援所選語言，請更換語言後再試'
+              : '語音辨識發生錯誤：' + err;
+        UI.showToast(msg);
+        return;
+      }
+      if (err === 'network') {
+        // 網路問題是暫時性的：靜默交由 onend 繼續重連，避免干擾字幕畫面。
+        return;
+      }
+      // no-speech / aborted / 其他未知錯誤：正常短暫現象，交由 onend 繼續重連
+    };
+
+    r.onend = () => {
+      connected = false;
+      hasEnded = true;
+      if (!isActive) return;
+      if (chromeRefreshing) {
+        chromeRefreshing = false;
+        reconnectCount = 0;
+      }
+      // 無限制重連，讓語音辨識永不中斷（致命錯誤已在 onerror 中 stop）
+      _scheduleReconnect();
+    };
+
+    return r;
+  }
+
+  async function start() {
+    if (isActive) return;
+    reconnectCount = 0;
+    isActive = true;
+    connected = false;
+    hasEnded = false;
+    UI.setReconnecting(false);
+    WakeLockManager.request();
+    recognition = _createRecognition();
+    if (!recognition) {
+      isActive = false;
+      WakeLockManager.release();
+      return;
+    }
+    try {
+      _startRecognitionInstance(recognition);
+      _scheduleChromeRefresh();
+    } catch(e) {
+      // start 拋出異常時保留 isActive = true，直接排程重連
+      // 用戶可以點擊停止按鈕（stop() 會設 isActive = false 中斷重連迴圈）
+      _scheduleReconnect();
+      return;
+    }
+  }
+
+  function stop() {
+    isActive = false;
+    connected = false;
+    hasEnded = false;
+    UI.setReconnecting(false);
+    WakeLockManager.release();
+    _clearChromeRefreshTimer();
+    chromeRefreshing = false;
+    if (recognition) {
+      try { recognition.stop(); } catch(e) {}
+      recognition = null;
+    }
+    TextArea.commitInterim();
+    // 停止時立即保存草稿，避免 1 秒 debounce 窗口內關閉頁面遺失內容
+    Draft.save();
+    UI.updateWordCount(true);
+  }
+
+  function getIsActive() {
+    return isActive;
+  }
+
+  function isConnected() {
+    return connected;
+  }
+
+  // 是否已斷線且尚未恢復（供 visibilitychange 判斷是否需要自動重啟）
+  function needsRecovery() {
+    return !connected && hasEnded;
+  }
+
+  function restart() {
+    stop();
+    setTimeout(() => {
+      UI.startRecordingUI();
+      start();
+    }, 300);
+  }
+
+  return { start, stop, restart, getIsActive, isConnected, needsRecovery };
+})();
+
+
+// ─────────────────────────────────────────────
+// UI (使用者介面管理員)
+// ─────────────────────────────────────────────
+const UI = (() => {
+  let settingsOpen = false;
+  let toastTimer = null;
+  let wordCountTimer = null;
+  let lastToastMsg = '';
+  let lastToastTime = 0;
+
+  function checkAPI() {
+    const ok = !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+    const warning = document.getElementById('api-warning');
+    const btn = document.getElementById('start-btn');
+    if (!ok) {
+      warning.classList.add('visible');
+      btn.disabled = true;
+    }
+    return ok;
+  }
+
+  let lastMicLabel = '';
+  let helperAudioDevices = [];
+  let helperAudioReady = false;
+
+  async function helperApi(path, options = {}) {
+    const res = await fetch(path, {
+      headers: { 'Content-Type': 'application/json' },
+      ...options,
+    });
+    if (!res.ok) throw new Error(`${path} ${res.status}`);
+    return res.json();
+  }
+
+  function renderHelperAudioDevices(devices) {
+    const select = document.getElementById('audio-source-select');
+    const labelEl = document.getElementById('current-mic-name');
+    if (!select || !labelEl) return;
+
+    helperAudioDevices = devices || [];
+    const active = helperAudioDevices.find(d => d.is_default);
+    select.innerHTML = '';
+
+    if (!helperAudioDevices.length) {
+      const option = document.createElement('option');
+      option.value = '';
+      option.textContent = '找不到音源';
+      select.appendChild(option);
+      select.disabled = true;
+      labelEl.textContent = '🎤 找不到麥克風';
+      return;
+    }
+
+    for (const device of helperAudioDevices) {
+      const option = document.createElement('option');
+      option.value = device.id;
+      option.textContent = device.alias || device.name;
+      option.title = device.name;
+      select.appendChild(option);
+    }
+
+    select.disabled = false;
+    if (active) {
+      select.value = active.id;
+      labelEl.textContent = '🎤 ' + (active.alias || active.name);
+      labelEl.title = active.name;
+    }
+    renderAudioAliasSettings();
+  }
+
+  function renderAudioAliasSettings() {
+    const list = document.getElementById('audio-alias-list');
+    if (!list) return;
+    list.innerHTML = '';
+
+    if (!helperAudioReady) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'font-size:13px;color:var(--fg-secondary);';
+      empty.textContent = '本機 helper 未連線，無法自訂音源名稱。';
+      list.appendChild(empty);
+      return;
+    }
+
+    if (!helperAudioDevices.length) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'font-size:13px;color:var(--fg-secondary);';
+      empty.textContent = '找不到可用音源。';
+      list.appendChild(empty);
+      return;
+    }
+
+    for (const device of helperAudioDevices) {
+      const row = document.createElement('div');
+      row.className = 'audio-alias-row';
+
+      const name = document.createElement('div');
+      name.className = 'audio-alias-name';
+      name.textContent = device.name;
+      name.title = device.name;
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.maxLength = 60;
+      input.value = device.alias || device.name;
+      input.dataset.deviceId = device.id;
+      input.placeholder = '顯示名稱';
+
+      row.appendChild(name);
+      row.appendChild(input);
+      list.appendChild(row);
+    }
+  }
+
+  async function saveAudioAliases() {
+    if (!helperAudioReady) {
+      showToast('⚠ 本機 helper 未連線');
+      return;
+    }
+    const inputs = Array.from(document.querySelectorAll('#audio-alias-list input[data-device-id]'));
+    const devices = inputs.map(input => ({
+      id: input.dataset.deviceId,
+      alias: input.value.trim(),
+    }));
+
+    try {
+      const data = await helperApi('/api/audio/devices', {
+        method: 'POST',
+        body: JSON.stringify({ devices }),
+      });
+      helperAudioReady = true;
+      renderHelperAudioDevices(data.devices || []);
+      showToast('✅ 已儲存音源名稱');
+    } catch (e) {
+      showToast('⚠ 儲存音源名稱失敗');
+    }
+  }
+
+  async function refreshHelperAudioDevices(autoRestart = false) {
+    const data = await helperApi('/api/audio/devices');
+    helperAudioReady = true;
+    renderHelperAudioDevices(data.devices || []);
+    const active = helperAudioDevices.find(d => d.is_default);
+    const label = active ? active.name : '';
+    if (label && lastMicLabel && lastMicLabel !== label && autoRestart && SpeechManager.getIsActive()) {
+      SpeechManager.restart();
+    }
+    if (label) lastMicLabel = label;
+  }
+
+  async function switchHelperAudioDevice(deviceId) {
+    if (!deviceId) return;
+    const select = document.getElementById('audio-source-select');
+    if (select) select.disabled = true;
+    try {
+      // /api/audio/default 的回應本身就已經帶最新裝置清單（is_default 已更新），
+      // 不用再額外呼叫一次 /api/audio/devices 重新掃描一遍。
+      const data = await helperApi('/api/audio/default', {
+        method: 'POST',
+        body: JSON.stringify({ id: deviceId }),
+      });
+      helperAudioReady = true;
+      renderHelperAudioDevices(data.devices || []);
+      if (SpeechManager.getIsActive()) {
+        setTimeout(() => SpeechManager.restart(), 1200);
+      }
+      showToast('🎤 已切換音源');
+    } catch (e) {
+      showToast('⚠ 音源切換失敗');
+    } finally {
+      if (select) select.disabled = false;
+    }
+  }
+
+  // 用 enumerateDevices 讀取麥克風名稱作為 fallback；exe 啟動時優先使用本機 helper API。
+  async function displayCurrentMic(autoRestart = false) {
+    const el = document.getElementById('current-mic-name');
+    if (!el) return;
+
+    try {
+      await refreshHelperAudioDevices(autoRestart);
+      return;
+    } catch (e) {
+      helperAudioReady = false;
+      const select = document.getElementById('audio-source-select');
+      if (select) {
+        select.innerHTML = '<option value="">使用系統預設</option>';
+        select.disabled = true;
+      }
+      renderAudioAliasSettings();
+    }
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+      el.textContent = '🎤 系統預設麥克風';
+      return;
+    }
+    let label = '';
+    let micCount = 0;
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const inputs = devices.filter(d => d.kind === 'audioinput');
+      micCount = inputs.length;
+      const def = inputs.find(d => d.deviceId === 'default');
+      label = (def && def.label) ? def.label : '';
+      if (!label) {
+        const labeled = inputs.find(d => d.label);
+        if (labeled) label = labeled.label;
+      }
+    } catch (e) { /* 忽略 */ }
+
+    if (label) {
+      el.textContent = '🎤 ' + label;
+      if (lastMicLabel && lastMicLabel !== label) {
+        if (autoRestart && SpeechManager.getIsActive()) {
+          SpeechManager.restart();
+        }
+      }
+      lastMicLabel = label;
+    } else if (micCount > 0) {
+      el.textContent = '🎤 系統預設麥克風';
+    } else {
+      el.textContent = '🎤 找不到麥克風';
+    }
+  }
+
+  function startRecordingUI() {
+    const btn = document.getElementById('start-btn');
+    btn.textContent = '⬛ 停止';
+    btn.classList.add('recording');
+    document.getElementById('rec-dot').classList.add('active');
+    TextArea.setEditable(false);
+    document.getElementById('lang-select').disabled = true;
+    displayCurrentMic();
+    AudioLevelMonitor.start();
+  }
+
+  function stopRecordingUI() {
+    const btn = document.getElementById('start-btn');
+    btn.textContent = '▶ 啟動';
+    btn.classList.remove('recording');
+    document.getElementById('rec-dot').classList.remove('active');
+    TextArea.setEditable(true);
+    document.getElementById('lang-select').disabled = false;
+    AudioLevelMonitor.stop();
+  }
+
+  function toggleSettings() {
+    const panel = document.getElementById('settings-panel');
+    const overlay = document.getElementById('settings-overlay');
+    settingsOpen = !settingsOpen;
+    panel.classList.toggle('open', settingsOpen);
+    overlay.classList.toggle('visible', settingsOpen);
+  }
+
+  function showToast(msg, throttleMs = 0) {
+    const now = Date.now();
+    // 節流：相同訊息在 throttleMs 內不重複顯示（避免重連時 toast 轟炸）
+    if (throttleMs > 0 && msg === lastToastMsg && now - lastToastTime < throttleMs) return;
+    lastToastMsg = msg;
+    lastToastTime = now;
+    const toast = document.getElementById('toast');
+    toast.textContent = msg;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 3200);
+  }
+
+  // 重連中 UI 回饋：錄音燈轉黃 + 狀態列顯示重連次數
+  function setReconnecting(on, count = 0) {
+    const dot = document.getElementById('rec-dot');
+    dot.classList.toggle('reconnecting', !!on);
+    const stat = document.getElementById('stat-reconnect');
+    if (stat) {
+      stat.style.display = on ? 'flex' : 'none';
+      const shown = count > 99 ? '99+' : String(count);
+      stat.textContent = on ? `🔄 重連中 (第 ${shown} 次)` : '';
+    }
+  }
+
+  // 用 textContent + debounce，避免 innerText 每次觸發 reflow
+  function updateWordCount(immediate = false) {
+    clearTimeout(wordCountTimer);
+    const doUpdate = () => {
+      const el = document.getElementById('transcript');
+      const clean = (el.textContent || '').replace(/\s+/g, '');
+      document.getElementById('stat-words').textContent = `📝 ${clean.length} 字`;
+    };
+    if (immediate) { doUpdate(); return; }
+    wordCountTimer = setTimeout(doUpdate, 300);
+  }
+
+  function copyText() {
+    const el = document.getElementById('transcript');
+    const text = el.innerText || el.textContent || '';
+    if (!text.trim()) {
+      showToast('暫無內容可複製');
+      return;
+    }
+    navigator.clipboard.writeText(text).then(() => {
+      showToast('✅ 已複製全文');
+    }).catch(() => {
+      showToast('❌ 複製失敗');
+    });
+  }
+
+  function saveTxt() {
+    const el = document.getElementById('transcript');
+    const text = el.innerText || el.textContent || '';
+    if (!text.trim()) {
+      showToast('暫無內容可儲存');
+      return;
+    }
+    const now = new Date();
+    const pad = n => String(n).padStart(2, '0');
+    const filename = `語音轉錄_${now.getFullYear()}${pad(now.getMonth()+1)}${pad(now.getDate())}_${pad(now.getHours())}${pad(now.getMinutes())}.txt`;
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    showToast('✅ 已儲存為 ' + filename);
+  }
+
+  function init() {
+    checkAPI();
+    displayCurrentMic();
+
+    // 當網頁重新獲得焦點，或系統裝置改變時，檢查麥克風是否變更
+    window.addEventListener('focus', () => {
+      if (SpeechManager.getIsActive()) displayCurrentMic(true);
+    });
+    if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+      navigator.mediaDevices.addEventListener('devicechange', () => {
+        if (SpeechManager.getIsActive()) displayCurrentMic(true);
+      });
+    }
+
+    // 啟動 / 停止 按鈕
+    document.getElementById('start-btn').addEventListener('click', () => {
+      if (!checkAPI()) return;
+      const btn = document.getElementById('start-btn');
+      if (btn.classList.contains('recording')) {
+        SpeechManager.stop();
+        stopRecordingUI();
+        updateWordCount();
+      } else {
+        startRecordingUI();
+        SpeechManager.start();
+      }
+    });
+
+    // 清除按鈕
+    document.getElementById('clear-btn').addEventListener('click', () => {
+      const text = document.getElementById('transcript').textContent.trim();
+      if (!text) return; // 空的就不用清
+      if (confirm('確定要清除全部的轉錄文字嗎？此動作無法復原。')) {
+        TextArea.reset();
+        Draft.clear();
+        UI.updateWordCount(true);
+        UI.showToast('✅ 已清除全文');
+      }
+    });
+
+    // 複製按鈕
+    document.getElementById('copy-btn').addEventListener('click', copyText);
+
+    // 儲存按鈕
+    document.getElementById('save-btn').addEventListener('click', saveTxt);
+
+    // 作者按鈕：切換夜晚模式（黑底黃字）/ 白天模式
+    document.getElementById('author-btn').addEventListener('click', () => {
+      const isNight = !SettingsManager.getCurrent().nightMode;
+      if (isNight) {
+        // 夜晚模式：上下全黑，轉錄區黑底黃字
+        SettingsManager.save({ theme: 'custom', nightMode: true, bgColor: '#000000', fgColor: '#ffd700', fontFamily: "'DFKai-SB', 'BiauKai', serif" });
+        document.getElementById('set-theme').value = 'custom';
+        document.getElementById('set-bg').value = '#000000';
+        document.getElementById('set-fg').value = '#ffd700';
+        const fontSel = document.getElementById('set-font');
+        fontSel.selectedIndex = 0;
+      } else {
+        // 白天模式：上下淺灰，轉錄區白底深字
+        SettingsManager.save({ theme: 'custom', nightMode: false, bgColor: '#ffffff', fgColor: '#1a1d23', fontFamily: "'DFKai-SB', 'BiauKai', serif" });
+        document.getElementById('set-theme').value = 'custom';
+        document.getElementById('set-bg').value = '#ffffff';
+        document.getElementById('set-fg').value = '#1a1d23';
+        const fontSel = document.getElementById('set-font');
+        fontSel.selectedIndex = 0;
+      }
+    });
+
+    // 說明面板
+    const instModal = document.getElementById('instruction-modal');
+    const closeInst = () => instModal.classList.remove('visible');
+    document.getElementById('instruction-btn').addEventListener('click', () => {
+      instModal.classList.add('visible');
+    });
+    document.getElementById('instruction-close').addEventListener('click', closeInst);
+    instModal.addEventListener('click', (e) => {
+      if (e.target === instModal) closeInst();
+    });
+
+    // 授權聲明面板
+    const licModal = document.getElementById('license-modal');
+    const closeLic = () => licModal.classList.remove('visible');
+    document.getElementById('license-btn').addEventListener('click', () => {
+      licModal.classList.add('visible');
+    });
+    document.getElementById('license-close').addEventListener('click', closeLic);
+    licModal.addEventListener('click', (e) => {
+      if (e.target === licModal) closeLic();
+    });
+
+    // 設定面板開啟 / 關閉
+    document.getElementById('settings-btn').addEventListener('click', toggleSettings);
+    document.getElementById('settings-close').addEventListener('click', toggleSettings);
+    document.getElementById('settings-overlay').addEventListener('click', toggleSettings);
+
+    const audioSourceSelect = document.getElementById('audio-source-select');
+    if (audioSourceSelect) {
+      audioSourceSelect.addEventListener('change', (e) => {
+        switchHelperAudioDevice(e.target.value);
+      });
+    }
+    const audioAliasRefresh = document.getElementById('audio-alias-refresh');
+    if (audioAliasRefresh) {
+      audioAliasRefresh.addEventListener('click', () => displayCurrentMic(false));
+    }
+    const audioAliasSave = document.getElementById('audio-alias-save');
+    if (audioAliasSave) {
+      audioAliasSave.addEventListener('click', saveAudioAliases);
+    }
+
+    // 雙擊文本區全螢幕 / 隱藏工具列
+    document.getElementById('transcript').addEventListener('dblclick', () => {
+      const isFullscreen = document.body.classList.toggle('fullscreen-mode');
+      try {
+        if (isFullscreen) {
+          if (document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen();
+          }
+        } else {
+          if (document.fullscreenElement && document.exitFullscreen) {
+            document.exitFullscreen();
+          }
+        }
+      } catch (e) {}
+    });
+
+    // 監聽原生退出全螢幕事件，同步恢復工具列
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement) {
+        document.body.classList.remove('fullscreen-mode');
+      }
+    });
+
+    // 按 Ctrl+S 觸發儲存
+    document.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        saveTxt();
+      }
+    });
+
+    // 手動編輯轉錄內容時自動保存草稿
+    document.getElementById('transcript').addEventListener('input', () => Draft.schedule());
+
+    // 頁籤恢復可見時，若辨識已中斷則自動恢復
+    document.addEventListener('visibilitychange', () => {
+      // 只有真的斷過線（onend 已觸發）才自動重啟，避免誤傷仍正常運作的辨識
+      if (document.visibilityState === 'visible' && SpeechManager.getIsActive() && SpeechManager.needsRecovery()) {
+        setTimeout(() => {
+          if (SpeechManager.getIsActive() && SpeechManager.needsRecovery()) {
+            SpeechManager.restart();
+          }
+        }, 400);
+      }
+    });
+  }
+
+  return { init, checkAPI, startRecordingUI, stopRecordingUI, toggleSettings, showToast, updateWordCount, setReconnecting };
+})();
+
+
+// ─────────────────────────────────────────────
+// DraftManager (草稿自動保存 — 防當機/誤關遺失資料)
+// ─────────────────────────────────────────────
+const Draft = (() => {
+  const KEY = 'edgesrt_draft';
+  let timer = null;
+
+  function save() {
+    const el = document.getElementById('transcript');
+    const text = (el && (el.textContent || '')) || '';
+    if (!text.trim()) { clear(); return; }
+    try {
+      localStorage.setItem(KEY, JSON.stringify({ text, savedAt: Date.now() }));
+    } catch(e) {}
+  }
+
+  function schedule() {
+    clearTimeout(timer);
+    timer = setTimeout(save, 1000);
+  }
+
+  function clear() {
+    clearTimeout(timer);
+    try { localStorage.removeItem(KEY); } catch(e) {}
+  }
+
+  function load() {
+    try {
+      const raw = localStorage.getItem(KEY);
+      if (!raw) return null;
+      const d = JSON.parse(raw);
+      return (d && typeof d.text === 'string' && d.text.trim()) ? d : null;
+    } catch(e) { return null; }
+  }
+
+  return { schedule, save, clear, load };
+})();
+
+
+// ─────────────────────────────────────────────
+// Bootstrap (程式啟動入口)
+// ─────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  SettingsManager.init();
+  GlossaryManager.init();
+  TextArea.init();
+  UI.init();
+
+  // 還原上次的錄音草稿（若有）
+  let draftRestored = false;
+  const draft = Draft.load();
+  if (draft) {
+    draftRestored = true;
+    const el = document.getElementById('transcript');
+    el.innerHTML = '';
+    const lines = draft.text.split('\n');
+    for (const line of lines) {
+      const p = document.createElement('p');
+      p.textContent = line;
+      el.appendChild(p);
+    }
+    UI.updateWordCount(true);
+    UI.showToast('📂 已還原上次的錄音草稿（按 🗑️ 清除可刪除）');
+  }
+
+  // 檢查是否帶有 ?autostart=true 自動啟動參數
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('autostart') === 'true' || urlParams.get('start') === '1') {
+    setTimeout(() => {
+      if (UI.checkAPI()) {
+        UI.startRecordingUI();
+        SpeechManager.start();
+        UI.showToast(draftRestored ? '📂 已還原草稿並一鍵啟動語音辨識' : '已一鍵自動開啟並啟動語音辨識');
+      }
+    }, 400);
+  }
+});
+</script>
 </body>
 </html>

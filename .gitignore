@@ -13,6 +13,9 @@ dist/
 # Local app data & logs (整個資料夾都是本機執行時的狀態/設定，不進版控)
 _appdata/
 
+# SoundVolumeView 執行時自動產生的視窗狀態設定檔（非 NirSoft 原始套件內容，不進版控）
+bin/SoundVolumeView.cfg
+
 # Environments
 venv/
 .venv/

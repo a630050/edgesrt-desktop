@@ -15,18 +15,16 @@ if exist "dist\EdgeSRT-Desktop.exe" del /f /q "dist\EdgeSRT-Desktop.exe"
 
 echo.
 echo [2/3] 正在使用 PyInstaller 進行打包 (請稍候 30~60 秒)...
-pyinstaller --noconfirm --onefile --windowed ^
+pyinstaller --noconfirm --onefile --windowed --noupx ^
   --name "EdgeSRT-Desktop" ^
-  --icon "ui/assets/app_icon.ico" ^
+  --icon "assets/app_icon.ico" ^
   --add-data "capturer;capturer" ^
   --add-data "bin;bin" ^
-  --add-data "ui/assets;ui/assets" ^
   --hidden-import "comtypes" ^
   --hidden-import "aiohttp" ^
   --hidden-import "win32gui" ^
   --hidden-import "win32con" ^
   --hidden-import "win32process" ^
-  --hidden-import "PyQt6" ^
   main.py
 
 if %ERRORLEVEL% EQU 0 (

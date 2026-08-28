@@ -73,19 +73,13 @@ edgesrt-desktop\
 │   ├── SoundVolumeView.exe
 │   ├── SoundVolumeView.chm
 │   └── readme.txt
+├── assets\
+│   └── app_icon.ico         # 應用程式圖示
 ├── capturer\
-│   └── index.html          # Web Speech API 辨識引擎與 WebSocket 通訊頁
-├── ui\
-│   ├── main_window.py      # PyQt6 桌面主視窗與互動邏輯
-│   ├── settings_dialog.py  # 音源裝置管理與別名設定面板
-│   ├── glossary_dialog.py  # 詞彙替換表管理
-│   ├── typography_dialog.py # 字體/行距/主題排版設定
-│   ├── license_dialog.py   # 授權聲明對話框
-│   ├── theme.py             # 主題與配色定義
-│   └── assets\              # 圖示等靜態資源
-├── audio_manager.py         # Windows Core Audio 裝置偵測與切換邏輯
-├── capture_server.py        # 本機 HTTP + WebSocket 服務端，管理背景 Edge 進程
-├── main.py                  # 程式入口
+│   └── index.html          # 前端頁面：Web Speech API 辨識引擎、設定面板、辭彙替換表
+├── audio_manager.py         # Windows Core Audio 裝置偵測與切換邏輯（IPolicyConfig，SoundVolumeView 為備援）
+├── capture_server.py        # 本機 HTTP 服務端，管理背景 Edge 進程與音訊裝置 API
+├── main.py                  # 程式入口（browser-main 架構：Edge 視窗本身即為主要介面）
 ├── build.bat                # PyInstaller 單檔打包腳本
 └── run.bat                  # Windows 開發模式一鍵啟動腳本
 ```
@@ -112,9 +106,6 @@ edgesrt-desktop\
 
 | 套件 / 工具 | 用途 | 授權 |
 |---|---|---|
-| [PyQt6](https://www.riverbankcomputing.com/software/pyqt/)（Riverbank Computing） | 高效能 GUI 桌面框架 | GPL v3 |
-| [PyQt6-Qt6](https://www.qt.io/)（PyQt6 依賴，內含 Qt6 核心函式庫） | 底層 UI 渲染引擎 | LGPL v3 |
-| [PyQt6-sip](https://github.com/Python-SIP/sip) | PyQt6 的 Python/C++ 綁定橋接層 | BSD-2-Clause |
 | [aiohttp](https://github.com/aio-libs/aiohttp) | 非同步 HTTP 與 WebSocket 串流伺服端 | Apache 2.0 |
 | [comtypes](https://github.com/enthought/comtypes) | Windows Core Audio API 底層端點列舉 | MIT License |
 | [pywin32](https://github.com/mhammond/pywin32) | Windows 系統整合與 Win32 API 調用 | PSF License |

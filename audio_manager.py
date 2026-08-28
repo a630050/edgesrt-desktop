@@ -83,6 +83,35 @@ class IMMDeviceEnumerator(IUnknown):
         COMMETHOD([], HRESULT, 'GetDefaultAudioEndpoint', (['in'], wintypes.DWORD, 'dataFlow'), (['in'], wintypes.DWORD, 'role'), (['out'], ctypes.POINTER(ctypes.POINTER(IMMDevice)), 'ppEndpoint')),
     ]
 
+# IPolicyConfig 是未公開於官方 SDK 的 COM 介面，但自 Windows Vista 起 ABI 維持穩定，
+# 是 EarTrumpet、SoundSwitch 等主流音訊切換工具背後實際使用的標準做法。用它可以在目前
+# 這個已經在跑的 Python 行程內直接切換系統預設錄音端點，不需要另外啟動一個外部執行檔
+# ——避免每次切換都額外付出一次「啟動新程序」的防毒即時掃描代價（在有些機器上可能高達
+# 數秒），詳見 set_default_device()。
+CLSID_PolicyConfigClient = GUID('{870af99c-171d-4f9e-af0d-e63df40c2bc9}')
+IID_IPolicyConfig = GUID('{f8679f50-850a-41cf-9c72-430f290290c8}')
+
+ERole_CONSOLE = 0
+ERole_MULTIMEDIA = 1
+ERole_COMMUNICATIONS = 2
+
+class IPolicyConfig(IUnknown):
+    _iid_ = IID_IPolicyConfig
+    _methods_ = [
+        COMMETHOD([], HRESULT, 'GetMixFormat'),
+        COMMETHOD([], HRESULT, 'GetDeviceFormat'),
+        COMMETHOD([], HRESULT, 'ResetDeviceFormat'),
+        COMMETHOD([], HRESULT, 'SetDeviceFormat'),
+        COMMETHOD([], HRESULT, 'GetProcessingPeriod'),
+        COMMETHOD([], HRESULT, 'SetProcessingPeriod'),
+        COMMETHOD([], HRESULT, 'GetShareMode'),
+        COMMETHOD([], HRESULT, 'SetShareMode'),
+        COMMETHOD([], HRESULT, 'GetPropertyValue'),
+        COMMETHOD([], HRESULT, 'SetPropertyValue'),
+        COMMETHOD([], HRESULT, 'SetDefaultEndpoint', (['in'], c_wchar_p, 'wszDeviceId'), (['in'], wintypes.DWORD, 'eRole')),
+        COMMETHOD([], HRESULT, 'SetEndpointVisibility'),
+    ]
+
 
 @dataclass
 class AudioDeviceInfo:
@@ -160,7 +189,11 @@ class AudioManager:
             enumerator = client.CreateObject(CLSID_MMDeviceEnumerator, interface=IMMDeviceEnumerator)
             collection = enumerator.EnumAudioEndpoints(1, 1)
             count = collection.GetCount()
-            default_id = self.get_current_default_device_id()
+            try:
+                default_id = enumerator.GetDefaultAudioEndpoint(1, 0).GetId()
+            except Exception as e:
+                logger.error(f"取得預設音訊輸入裝置失敗: {e}")
+                default_id = None
 
             for i in range(count):
                 dev = collection.Item(i)
@@ -277,7 +310,30 @@ class AudioManager:
         return enabled
 
     def set_default_device(self, device_id: str) -> bool:
-        """使用 SoundVolumeView 將指定 ID 設為 Windows 預設錄音端點"""
+        """
+        將指定 ID 設為 Windows 預設錄音端點。
+        優先走 IPolicyConfig COM 介面（在目前行程內直接呼叫，通常 < 100ms）；
+        萬一該介面在某些 Windows 版本上失敗，才 fallback 到 SoundVolumeView.exe
+        （會額外啟動一個外部程序，在有防毒即時掃描的機器上可能明顯變慢）。
+        """
+        try:
+            comtypes.CoInitialize()
+            policy_config = client.CreateObject(CLSID_PolicyConfigClient, interface=IPolicyConfig)
+            for role in (ERole_CONSOLE, ERole_MULTIMEDIA, ERole_COMMUNICATIONS):
+                policy_config.SetDefaultEndpoint(device_id, role)
+            logger.info(f"成功將預設音訊輸入端點切換至: {device_id}")
+            return True
+        except Exception as e:
+            logger.warning(f"IPolicyConfig 切換音訊端點失敗，改用 SoundVolumeView 備援: {e}")
+            return self._set_default_device_via_soundvolumeview(device_id)
+        finally:
+            try:
+                comtypes.CoUninitialize()
+            except Exception:
+                pass
+
+    def _set_default_device_via_soundvolumeview(self, device_id: str) -> bool:
+        """使用 SoundVolumeView 將指定 ID 設為 Windows 預設錄音端點（IPolicyConfig 失敗時的備援方案）"""
         if not os.path.isfile(SVV_EXE):
             logger.error(f"找不到 SoundVolumeView 工具: {SVV_EXE}")
             return False
